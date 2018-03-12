@@ -55,4 +55,20 @@ class MerkleNodeSpec extends FlatSpec with GivenWhenThen with Matchers with Insi
       }
     }
   }
+
+  it should "always generate the same hash for the same document" in {
+
+    val documents = Vector(
+      "transaction - 01",
+      "transaction - 02",
+      "transaction - 03"
+    )
+
+    val tree1 = MerkleNode.build(documents)
+    val tree2 = MerkleNode.build(documents)
+
+    tree1.get.hash shouldBe tree2.get.hash
+    tree1.get.left.get.hash shouldBe tree2.get.left.get.hash
+    tree1.get.right.get.hash shouldBe tree2.get.right.get.hash
+  }
 }

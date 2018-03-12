@@ -4,7 +4,7 @@ import cats.syntax.option._
 import tshy0931.com.github.weichain.SHA256DigestModule
 
 case class MerkleNode(index: Int,
-                      hash: String,
+                      hash: Array[Byte],
                       left: Option[MerkleNode],
                       right: Option[MerkleNode])
 
@@ -21,7 +21,7 @@ object MerkleNode extends SHA256DigestModule {
 
     if(index >= documents.length) None
     else {
-      val hash = digestor.digest(documents(index).getBytes("UTF-8")).map("%02x".format(_)).mkString
+      val hash: Array[Byte] = digestor.digest(documents(index).getBytes("UTF-8"))
       MerkleNode(index, hash, buildNodeAt(left(index), documents), buildNodeAt(right(index), documents)).some
     }
   }

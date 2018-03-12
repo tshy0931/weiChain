@@ -1,11 +1,16 @@
 package tshy0931.com.github.weichain.model
 
 import Transaction._
-import tshy0931.com.github.weichain.{ScriptPubKey, ScriptSig}
+import tshy0931.com.github.weichain.model.Script.{PubKey, Sig}
 
 case class Transaction(metadata: Metadata,
                        inputs: List[Input],
-                       outputs: List[Output])
+                       totalIn: Double,
+                       outputs: List[Output],
+                       totalOut: Double,
+                       coinbase: Option[String],
+                       fee: Double
+                      )
 
 object Transaction {
 
@@ -20,19 +25,25 @@ object Transaction {
     */
   case class Metadata(transactionHash: String,
                       version: Int,
+                      blockIndex: Int,
                       inputSize: Int,
                       outputSize: Int,
                       lockTime: Int,
                       size: Long)
 
   case class Input(source: Pointer,
-                   coinbase: Option[String],
-                   scriptSig: Option[ScriptSig])
+                   address: String,
+                   value: Double,
+                   scriptSig: Sig)
 
   case class Output(value: Double,
-                    scriptPubKey: ScriptPubKey)
+                    address: String,
+                    index: Int,
+                    scriptPubKey: PubKey)
 
   case class Pointer(hash: String,
-                     index: Int)
+                     blockIndex: Int,
+                     transactionIndex: Int,
+                     outputIndex: Int)
 
 }

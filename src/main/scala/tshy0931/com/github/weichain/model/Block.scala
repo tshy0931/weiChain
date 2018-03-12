@@ -1,6 +1,8 @@
 package tshy0931.com.github.weichain.model
 
-case class Block()
+import tshy0931.com.github.weichain.model.Block.{Body, Header}
+
+case class Block(header: Header, body: Body)
 
 object Block {
 
@@ -14,6 +16,6 @@ object Block {
   case class Body(merkleRoot: String,
                   transactionCount: Int,
                   size: Long,
-                  transactions: List[Transaction],
+                  transactions: Vector[Transaction],
                   merkleTree: List[String])
 }

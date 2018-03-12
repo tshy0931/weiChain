@@ -4,11 +4,6 @@ import java.security.MessageDigest
 
 package object weichain {
 
-  class ScriptSig(val value: String) extends AnyVal
-  class ScriptPubKey(val value: String) extends AnyVal {
-    def eval: List[String] = value.split(" ").toList
-  }
-
   /**
     * https://en.bitcoin.it/wiki/Pay_to_script_hash
     * Pay to script hash (P2SH) transactions were standardised in BIP 16.
