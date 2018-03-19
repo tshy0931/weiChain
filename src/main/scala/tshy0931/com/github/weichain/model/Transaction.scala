@@ -1,7 +1,6 @@
 package tshy0931.com.github.weichain.model
 
 import Transaction._
-import tshy0931.com.github.weichain.model.Script.{PubKey, Sig}
 
 case class Transaction(metadata: Metadata,
                        inputs: List[Input],
@@ -34,12 +33,12 @@ object Transaction {
   case class Input(source: Pointer,
                    address: String,
                    value: Double,
-                   scriptSig: Sig)
+                   scriptSig: String)
 
   case class Output(value: Double,
                     address: String,
                     index: Int,
-                    scriptPubKey: PubKey)
+                    scriptPubKey: String)
 
   case class Pointer(hash: String,
                      blockIndex: Int,

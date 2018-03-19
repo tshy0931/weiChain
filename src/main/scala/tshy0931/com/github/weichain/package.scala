@@ -1,6 +1,7 @@
 package tshy0931.com.github
 
-import java.security.MessageDigest
+import java.security.{KeyFactory, MessageDigest, Signature}
+import java.security.spec.PKCS8EncodedKeySpec
 
 package object weichain {
 
@@ -23,4 +24,25 @@ package object weichain {
   trait SHA256DigestModule extends DigestModule {
     override def digestor: MessageDigest = MessageDigest.getInstance("SHA-256")
   }
+
+  trait SignatureModule {
+    val algorithm: String
+    def sign(secretKey: String, document: String): String
+  }
+  trait MockSignatureModule extends SignatureModule {
+
+    override val algorithm: String = "SHA1withRSA"
+
+    lazy val signature = Signature.getInstance(algorithm)
+
+    override def sign(secretKey: String, document: String): String = {
+      secretKey+document
+//      val spec = new PKCS8EncodedKeySpec(secretKey.getBytes("UTF-8"))
+//      val key = KeyFactory.getInstance("RSA").generatePrivate(spec)
+//      signature.initSign(key)
+//      signature.update(document.getBytes("UTF-8"))
+//      signature.sign.map("%02x".format(_)).mkString
+    }
+  }
+
 }

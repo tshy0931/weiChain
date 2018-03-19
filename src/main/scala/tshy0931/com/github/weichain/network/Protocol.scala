@@ -10,4 +10,6 @@ trait Protocol {
   def connect(nodes: Vector[Node])
   def disconnect
   def gossip(transaction: Transaction)
+  def broadcastPeers
+  def send[A](value: A)
 }

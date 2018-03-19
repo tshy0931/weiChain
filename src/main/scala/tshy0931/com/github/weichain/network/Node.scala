@@ -12,9 +12,20 @@ class Node(val address: Address,
 
 object Node {
 
+  /**
+    * Seed DNS to contact when joining the P2P network
+    */
+  val seeds: Vector[String] = Vector(
+    "192.168.0.1:8333"
+  )
+
   case class Address()
 
   implicit class NodeOps(node: Node) extends Protocol {
+
+    override def send[A](value: A): Unit = ???
+
+    override def broadcastPeers: Unit = node.neighbors.foreach(n => send(node.neighbors.filterNot(_.address == n.address)))
 
     override def connect(nodes: Vector[Node]): Unit = ???
 

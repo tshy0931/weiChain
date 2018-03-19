@@ -4,7 +4,7 @@ import cats.data.Validated
 import cats.data.Validated.{Invalid, Valid}
 import cats.syntax.validated._
 import tshy0931.com.github.weichain.model.Script.Error
-import tshy0931.com.github.weichain.{DigestModule, SHA256DigestModule}
+import tshy0931.com.github.weichain.{DigestModule, SHA256DigestModule, SignatureModule}
 
 trait ScriptModule {
 
@@ -29,8 +29,7 @@ trait ScriptModule {
 
 object ScriptModule extends SHA256DigestModule {
 
-
-  trait SimpleScriptModule extends ScriptModule { this: DigestModule =>
+  trait SimpleScriptModule extends ScriptModule { this: DigestModule with SignatureModule =>
 
     override def exec: PartialFunction[String, Validated[Error, String]] = {
 
@@ -84,9 +83,95 @@ object ScriptModule extends SHA256DigestModule {
         stack = Nil
         "ok".valid
 
+      /** MultiSig Operations **/
+
+      case "OP_CHECKMULTISIG" =>
+        stack.headOption.fold[Validated[Error, String]](Error("stack is empty", "OP_CHECKMULTISIG", stack).invalid){ head =>
+          val nKey = head.toInt
+          val pubKeys: List[String] = stack.tail.take(nKey)
+          stack = stack.drop(nKey+1)
+          val nSig = stack.head.toInt
+          val signatures: List[String] = stack.tail.take(nSig+1)
+          stack = head :: stack
+          val isValid = signatures.forall(sig => pubKeys.exists(key => sign(key, key) == sig))
+          stack = stack.drop(nSig+2)
+          if(isValid) "ok".valid else Error("Multisig failed", "OP_CHECKMULTISIG", stack).invalid
+        }
+
+      case "OP_0" =>
+        "ok".valid
+
+      case "OP_1" =>
+        stack = "1" :: stack
+        "ok".valid
+
+      case "OP_2" =>
+        stack = "2" :: stack
+        "ok".valid
+
+      case "OP_3" =>
+        stack = "3" :: stack
+        "ok".valid
+
+      case "OP_4" =>
+        stack = "4" :: stack
+        "ok".valid
+
+      case "OP_5" =>
+        stack = "5" :: stack
+        "ok".valid
+
+      case "OP_6" =>
+        stack = "6" :: stack
+        "ok".valid
+
+      case "OP_7" =>
+        stack = "7" :: stack
+        "ok".valid
+
+      case "OP_8" =>
+        stack = "8" :: stack
+        "ok".valid
+
+      case "OP_9" =>
+        stack = "9" :: stack
+        "ok".valid
+
+      case "OP_10" =>
+        stack = "10" :: stack
+        "ok".valid
+
+      case "OP_11" =>
+        stack = "11" :: stack
+        "ok".valid
+
+      case "OP_12" =>
+        stack = "12" :: stack
+        "ok".valid
+
+      case "OP_13" =>
+        stack = "13" :: stack
+        "ok".valid
+
+      case "OP_14" =>
+        stack = "14" :: stack
+        "ok".valid
+
+      case "OP_15" =>
+        stack = "15" :: stack
+        "ok".valid
+
+      case "OP_16" =>
+        stack = "16" :: stack
+        "ok".valid
+
+      /** value to push to stack **/
+
       case value =>
         stack = value :: stack
         s"$value added".valid
+
+
 
 //      case err => Error(s"undefined command: $err", err, stack).asLeft
     }
