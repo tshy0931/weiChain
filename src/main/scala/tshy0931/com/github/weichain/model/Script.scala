@@ -1,6 +1,6 @@
 package tshy0931.com.github.weichain.model
 
-import tshy0931.com.github.weichain.{SHA256DigestModule, MockSignatureModule}
+import tshy0931.com.github.weichain._
 
 object Script extends SHA256DigestModule {
 
@@ -9,7 +9,7 @@ object Script extends SHA256DigestModule {
   object P2PKH extends MockSignatureModule {
 
     def pubKey(pubKey: String) = {
-      val pubKeyHash = digestor.digest(pubKey.getBytes("UTF-8")).map("%02x".format(_)).mkString
+      val pubKeyHash: String = digestor.digest(pubKey.getBytes("UTF-8"))
       s"OP_DUP OP_HASH160 $pubKeyHash OP_EQUALVERIFY OP_CHECKSIG"
     }
 

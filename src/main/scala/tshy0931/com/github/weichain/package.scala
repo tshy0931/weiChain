@@ -5,6 +5,8 @@ import java.security.spec.PKCS8EncodedKeySpec
 
 package object weichain {
 
+  type Hash = Array[Byte]
+
   /**
     * https://en.bitcoin.it/wiki/Pay_to_script_hash
     * Pay to script hash (P2SH) transactions were standardised in BIP 16.
@@ -36,7 +38,7 @@ package object weichain {
     lazy val signature = Signature.getInstance(algorithm)
 
     override def sign(secretKey: String, document: String): String = {
-      secretKey+document
+      s"sig_of_$document"
 //      val spec = new PKCS8EncodedKeySpec(secretKey.getBytes("UTF-8"))
 //      val key = KeyFactory.getInstance("RSA").generatePrivate(spec)
 //      signature.initSign(key)
@@ -45,4 +47,5 @@ package object weichain {
     }
   }
 
+  implicit def hashToString(array: Hash): String = array.map("%02x".format(_)).mkString
 }
