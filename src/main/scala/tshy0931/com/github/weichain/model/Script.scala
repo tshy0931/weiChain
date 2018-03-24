@@ -1,15 +1,17 @@
 package tshy0931.com.github.weichain.model
 
 import tshy0931.com.github.weichain._
+import module.DigestModule._
+import module.SignatureModule._
 
-object Script extends SHA256DigestModule {
+object Script {
 
   case class Error(msg: String, cmd: String, stack: List[String])
 
-  object P2PKH extends MockSignatureModule {
+  object P2PKH {
 
     def pubKey(pubKey: String) = {
-      val pubKeyHash: String = digestor.digest(pubKey.getBytes("UTF-8"))
+      val pubKeyHash: String = digest(pubKey)
       s"OP_DUP OP_HASH160 $pubKeyHash OP_EQUALVERIFY OP_CHECKSIG"
     }
 
@@ -19,7 +21,7 @@ object Script extends SHA256DigestModule {
     }
   }
 
-  object P2SH extends MockSignatureModule {
+  object P2SH {
 
     //TODO - how to distinguish between P2SH address and P2PKH address?
 
@@ -35,7 +37,7 @@ object Script extends SHA256DigestModule {
       s"OP_$nSigs ${pubKeys.mkString(" ")} OP_${pubKeys.length} OP_CHECKMULTISIG"
   }
 
-  object MultiSig extends MockSignatureModule {
+  object MultiSig {
 
     def pubKey(nSig: Int, pubKeys: Vector[String]) =
       s"OP_$nSig ${pubKeys.mkString(" ")} OP_${pubKeys.length} OP_CHECKMULTISIG"

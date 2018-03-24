@@ -1,32 +1,32 @@
 package tshy0931.com.github.weichain.model
 
 import tshy0931.com.github.weichain._
-import scala.collection.mutable
+import tshy0931.com.github.weichain.message.MerkleBlock
+import tshy0931.com.github.weichain.model.Block.BlockHeader
+import cats.syntax.option._
+import tshy0931.com.github.weichain.module.DigestModule._
 
-case class MerkleTree(hashes: Vector[Hash]) {
+case class MerkleTree(hashes: Vector[Hash], nTx: Int) {
 
   private lazy val lookup: Map[String, Int] = hashes.map(hashToString).zipWithIndex.toMap
 
   def indexOf(txHash: Hash): Option[Int] = lookup.get(txHash)
 }
 
-object MerkleTree extends SHA256DigestModule {
+object MerkleTree {
 
   def build(documents: Vector[String]): MerkleTree = {
 
-    var tree: Vector[Hash] = documents map { d => digestor.digest(d.getBytes("UTF-8"))}
+    var tree: Vector[Hash] = documents map { d => digest(d.getBytes("UTF-8"))}
     var toMerge: Vector[Hash] = tree
 
     while(toMerge.length > 1){
-      val newLayer = (toMerge.grouped(2) map { pair =>
-        val hash1: mutable.Buffer[Byte] = pair.head.toBuffer
-        hash1.append(pair.last:_*)
-        digestor.digest(hash1.toArray)
-      }).toVector
+      val newLayer = (toMerge.grouped(2) map { pair => merge(pair.head, pair.last) }).toVector
       tree = newLayer ++: tree
       toMerge = newLayer
     }
-    MerkleTree(tree)
+
+    MerkleTree(tree, documents.size)
   }
 
   implicit class MerkleTreeOps(tree: MerkleTree) {
@@ -41,8 +41,8 @@ object MerkleTree extends SHA256DigestModule {
     }
     private[model] def parent(i: Int): Option[Int] = if(i < size) Some((i - 1) >> 1) else None
 
-    private[model] def isLeft(parent: Int, child: Int): Boolean = (parent << 1) + 1 == child
-    private[model] def isRight(parent: Int, child: Int): Boolean = (parent << 1) + 2 == child
+    private[model] def isLeft(i: Int): Boolean = (i & 1)  == 1
+    private[model] def isRight(i: Int): Boolean = (i & 1) == 0
     private[model] def isLeaf(i: Int): Boolean = left(i).isEmpty
 
     def size:Int = tree.hashes.length
@@ -60,7 +60,7 @@ object MerkleTree extends SHA256DigestModule {
       }
     }
 
-    def deriveFlagsAndHashes(targetTx: Hash): Option[(Vector[Int], Vector[Hash])] = {
+    def deriveMerkleBlockFor(targetTx: Hash)(blockHeader: BlockHeader, nTx: Long): Option[MerkleBlock] = {
 
       derivePath(targetTx) map { path =>
 
@@ -89,7 +89,43 @@ object MerkleTree extends SHA256DigestModule {
           flags = flags :+ currentFlag
         }
 
-        (flags, hashes)
+        MerkleBlock(blockHeader, nTx, hashes, flags)
+      }
+    }
+
+    def parseMerkleBlock(merkleBlock: MerkleBlock): Option[(Hash, Int)] = {
+      // TODO - Support invalid cases like transaction not found and root hash not matching
+      val (rootHash, location, _, _) = parseFlagsAndHashes(0, merkleBlock.flags, merkleBlock.hashes)
+      location map { l => (rootHash, l - (size - tree.nTx)) }
+    }
+
+    private def parseFlagsAndHashes(index: Int, flags: Vector[Int], hashes: Vector[Hash]): (Hash, Option[Int], Vector[Int], Vector[Hash]) = {
+
+      if(flags.head == 1 && !isLeaf(index)){
+        // flag = 1 and Non-TXID Node
+        // The hash needs to be computed.
+        // Process the left child node to get its hash;
+        // process the right child node to get its hash;
+        // then concatenate the two hashes as 64 raw bytes and hash them to get this node’s hash.
+
+        val (leftHash, location1, remainingFlags1, remainingHashes1) = parseFlagsAndHashes(left(index).get, flags.tail, hashes)
+        val (rightHash, location2, remainingFlags2, remainingHashes2) =
+          right(index).map(parseFlagsAndHashes(_, remainingFlags1, remainingHashes1))
+                      .orElse((leftHash, None, remainingFlags1, remainingHashes1).some)
+                      .get
+
+        (merge(leftHash, rightHash), location1 orElse location2, remainingFlags2, remainingHashes2)
+
+      } else if(flags.head == 1 && isLeaf(index)){
+        // flag = 1 and TXID Node
+        // Use the next hash as this node’s TXID, and mark this transaction as matching the filter.
+        (hashes.head, Some(index), flags.tail, hashes.tail)
+
+      } else {
+        // flag = 0
+        // if TXID, use the next hash as this node’s TXID, but this transaction didn’t match the filter.
+        // if Non-TXID, use the next hash as this node’s hash. Don’t process any descendant nodes.
+        (hashes.head, None, flags.tail, hashes.tail)
       }
     }
   }

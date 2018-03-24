@@ -43,7 +43,7 @@ case class Transaction(hash: Hash,
                        txIn: Vector[Input],
                        nTxOut: Int,
                        txOut: Vector[Output],
-                       lockTime: Either[BlockCount, EpochTimeMillis],
+                       lockTime: Int,
                        blockIndex: Long,
                        txFee: Double)
 

@@ -3,6 +3,9 @@ package tshy0931.com.github.weichain.model
 import tshy0931.com.github.weichain._
 import org.scalatest._
 import org.scalatest.prop.TableDrivenPropertyChecks
+import tshy0931.com.github.weichain.message.MerkleBlock
+import tshy0931.com.github.weichain.model.Block.BlockHeader
+import tshy0931.com.github.weichain.module.DigestModule._
 
 class MerkleTreeSpec extends FlatSpec with GivenWhenThen with Matchers with Inside with MerkleTreeFixture {
 
@@ -10,7 +13,27 @@ class MerkleTreeSpec extends FlatSpec with GivenWhenThen with Matchers with Insi
 
   it should "build correct Merkle Tree from a collection of string documents" in {
 
+    val hashedTx: Vector[Hash] = testTransactions.map(tx => digestor.digest(tx.getBytes("UTF-8")))
+
+    MerkleTree.build(testTransactions)
+
     testMerkleTree.hashes.size shouldBe 14
+
+    hashedTx(0) shouldBe testMerkleTree.hashAt(7)
+    hashedTx(1) shouldBe testMerkleTree.hashAt(8)
+    hashedTx(2) shouldBe testMerkleTree.hashAt(9)
+    hashedTx(3) shouldBe testMerkleTree.hashAt(10)
+    hashedTx(4) shouldBe testMerkleTree.hashAt(11)
+    hashedTx(5) shouldBe testMerkleTree.hashAt(12)
+    hashedTx(6) shouldBe testMerkleTree.hashAt(13)
+
+    testMerkleTree.hashAt(3) shouldBe merge(testMerkleTree.hashAt(7), testMerkleTree.hashAt(8))
+    testMerkleTree.hashAt(4) shouldBe merge(testMerkleTree.hashAt(9), testMerkleTree.hashAt(10))
+    testMerkleTree.hashAt(5) shouldBe merge(testMerkleTree.hashAt(11), testMerkleTree.hashAt(12))
+    testMerkleTree.hashAt(6) shouldBe merge(testMerkleTree.hashAt(13), testMerkleTree.hashAt(13))
+
+    testMerkleTree.hashAt(0) shouldBe merge(testMerkleTree.hashAt(1), testMerkleTree.hashAt(2))
+    testMerkleTree.hashAt(1) shouldBe merge(testMerkleTree.hashAt(3), testMerkleTree.hashAt(4))
   }
 
   it should "always generate the same hash for the same document" in {
@@ -39,17 +62,34 @@ class MerkleTreeSpec extends FlatSpec with GivenWhenThen with Matchers with Insi
 
     forAll(testFlagsAndHashes) { (txId, flags, hashIndices) =>
 
-      val result = testMerkleTree.deriveFlagsAndHashes(digestor.digest(testTransactions(txId).getBytes("UTF-8")))
+      val result: Option[MerkleBlock] = testMerkleTree.deriveMerkleBlockFor(
+        digestor.digest(testTransactions(txId).getBytes("UTF-8"))
+      )(testBlockHeader, 0L)
+
       val hashes: Vector[String] = hashIndices map testMerkleTree.hashAt map hashToString
-      inside(result) { case Some((fs, hs)) =>
+      inside(result) { case Some(MerkleBlock(_, _, hs, fs)) =>
         fs shouldBe flags
         (hs map hashToString) shouldBe hashes
       }
     }
   }
+
+  it should "correctly verify that a transaction is in a block" in {
+
+    forAll(testFlagsAndHashes) { (txIndex, flags, hashIndices) =>
+
+      val result: Option[(Hash, Int)] = testMerkleTree.parseMerkleBlock(MerkleBlock(testBlockHeader, 0L, hashIndices map testMerkleTree.hashAt, flags))
+
+      inside(result) { case Some((rootHash, location)) =>
+        rootHash shouldBe testMerkleTree.hashAt(0)
+        //TODO - convert index in merkle tree back to index in transaction list
+        location shouldBe txIndex
+      }
+    }
+  }
 }
 
-trait MerkleTreeFixture extends SHA256DigestModule with TableDrivenPropertyChecks {
+trait MerkleTreeFixture extends TableDrivenPropertyChecks {
 
   val testTransactions: Vector[String] = Vector(
     "transaction - 01",
@@ -84,4 +124,6 @@ trait MerkleTreeFixture extends SHA256DigestModule with TableDrivenPropertyCheck
     (5, Vector(1,0,1,1,0,1,0), Vector(1,11,12,6)),
     (6, Vector(1,0,1,0,1,1),   Vector(1,5,13))
   )
+
+  val testBlockHeader = BlockHeader(Array.emptyByteArray, 0, Array.emptyByteArray, Array.emptyByteArray, 0L, 0L, 0L)
 }

@@ -1,8 +1,7 @@
 package tshy0931.com.github.weichain.message
 
 import tshy0931.com.github.weichain.Hash
-import tshy0931.com.github.weichain.model.Block
-import tshy0931.com.github.weichain.model.Block.Header
+import tshy0931.com.github.weichain.model.Block.BlockHeader
 
 /** Example: https://bitcoin.org/en/developer-reference#merkleblock
   * 01000000 ........................... Block version: 1
@@ -33,28 +32,14 @@ import tshy0931.com.github.weichain.model.Block.Header
   * @param hashes - hashes retrieved from merkle tree to verify the transaction in query
   * @param flags - 0 or 1 flags to indicate how to use the hashes in validation
   */
-case class MerkleBlock(blockHeader: Header,
+case class MerkleBlock(blockHeader: BlockHeader,
                        nTx: Long,
-                       hashes: List[Hash],
-                       flags: List[Int])
+                       hashes: Vector[Hash],
+                       flags: Vector[Int])
 
-object MerkleBlock {
+case class Headers(count: Int,
+                   forkIndex: Int,
+                   headers: Vector[BlockHeader])
 
-  implicit class merkleBlockOps(block: Block) {
-
-    import tshy0931.com.github.weichain.model.MerkleTree._
-
-//    def createMerkleBlock(txHash: Hash): Option[MerkleBlock] = {
-//      // TODO - implement flags and hashes creation as described in https://bitcoin.org/en/developer-reference#merkleblock
-//
-//      val tree = block.body.merkleTree
-//      for {
-//        index <- tree.indexOf(txHash)
-//        path  <- derivePath(index)
-//        hashes = ???
-//        header = block.header
-//        nTx    = block.body.nTx
-//      } yield MerkleBlock(header, nTx, hashes, )
-//    }
-  }
-}
+case class Blocks(count: Int,
+                  blockHashes: Vector[Hash])

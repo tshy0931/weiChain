@@ -1,9 +1,9 @@
 package tshy0931.com.github.weichain.model
 
 import tshy0931.com.github.weichain.Hash
-import tshy0931.com.github.weichain.model.Block.{Body, Header}
+import tshy0931.com.github.weichain.model.Block.{BlockBody, BlockHeader}
 
-case class Block(header: Header, body: Body)
+case class Block(header: BlockHeader, body: BlockBody)
 
 object Block {
 
@@ -26,13 +26,13 @@ object Block {
     * @param nBits - encoded version of the target threshold the header hash must be less than, aka difficulty.
     * @param nonce - the number to hash with block header and produce a hash less than the target threshold. proof of work.
     */
-  case class Header(hash: Hash,
-                    version: Int,
-                    prevBlockHash: Hash,
-                    merkleRoot: Hash,
-                    time: Long,
-                    nBits: Long,
-                    nonce: Long)
+  case class BlockHeader(hash: Hash,
+                         version: Int,
+                         prevBlockHash: Hash,
+                         merkleRoot: Hash,
+                         time: Long,
+                         nBits: Long,
+                         nonce: Long)
 
   /**
     *
@@ -41,8 +41,8 @@ object Block {
     * @param size - total size in bytes of all transactions in this block
     * @param transactions - collection of transactions in this block
     */
-  case class Body(merkleTree: MerkleTree,
-                  nTx: Int,
-                  size: Long,
-                  transactions: Vector[Transaction])
+  case class BlockBody(merkleTree: MerkleTree,
+                       nTx: Int,
+                       size: Long,
+                       transactions: Vector[Transaction])
 }
