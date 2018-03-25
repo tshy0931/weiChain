@@ -6,6 +6,8 @@ import tshy0931.com.github.weichain._
 import tshy0931.com.github.weichain.model.{Block, MerkleTree, Transaction}
 import tshy0931.com.github.weichain.model.Block.{BlockBody, BlockHeader}
 import ConfigurationModule._
+import tshy0931.com.github.weichain.message.MerkleBlock
+
 import scala.collection.JavaConverters._
 
 object BlockChainModule {
@@ -36,12 +38,23 @@ object BlockChainModule {
   var bestLocalHeaderChain: Vector[BlockHeader] = Vector(genesisBlock.header)
   //TODO - Store only header chain in memory and persist blocks into disk storage
   val bestLocalBlockChain: collection.concurrent.Map[String, Block] = new ConcurrentHashMap[String, Block]().asScala
+  def chainHeight: Long = bestLocalHeaderChain.size
+
+  val memPool: collection.concurrent.Map[String, Transaction] = new ConcurrentHashMap[String, Transaction]().asScala
+
   var blocksSynced: Boolean = false
   var headersSynced: Boolean = false
 
   def latestBlock: Block = bestLocalBlockChain(bestLocalHeaderChain.last.hash)
   def blockAt(index: Int): Block = bestLocalBlockChain(bestLocalHeaderChain(index).hash)
-  def chainHeight: Long = bestLocalHeaderChain.size
+  def blockWithHash(hash: String): Option[Block] = bestLocalBlockChain.get(hash)
+
+  def merkleBlockOf(blockHash: String, txHash: String): Option[MerkleBlock] = {
+    for {
+      block       <- blockWithHash(blockHash)
+      merkleBlock <- block.body.merkleTree.deriveMerkleBlockFor(txHash)(block.header, block.body.nTx)
+    } yield merkleBlock
+  }
 
   def getBlocksByHashes(hashes: Vector[Hash]): Vector[Option[Block]] = {
     hashes map { bestLocalBlockChain.get(_) }

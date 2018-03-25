@@ -48,7 +48,7 @@ object MerkleTree {
     def size:Int = tree.hashes.length
     def hashAt(index: Int): Hash = tree.hashes(index)
 
-    def derivePath(targetTx: Hash): Option[List[Int]] = {
+    def derivePath(targetTx: String): Option[List[Int]] = {
       tree.lookup.get(targetTx) map { index =>
         var curr = index
         var path = List(index)
@@ -60,9 +60,9 @@ object MerkleTree {
       }
     }
 
-    def deriveMerkleBlockFor(targetTx: Hash)(blockHeader: BlockHeader, nTx: Long): Option[MerkleBlock] = {
+    def deriveMerkleBlockFor(targetTxHash: String)(blockHeader: BlockHeader, nTx: Long): Option[MerkleBlock] = {
 
-      derivePath(targetTx) map { path =>
+      derivePath(targetTxHash) map { path =>
 
         var stack: List[Int] = List(0)
         var currentIndex: Int = 0

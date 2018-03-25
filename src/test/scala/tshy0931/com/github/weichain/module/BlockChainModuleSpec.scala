@@ -2,7 +2,7 @@ package tshy0931.com.github.weichain.module
 
 import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest._
-import tshy0931.com.github.weichain.{Hash, hashToString}
+import tshy0931.com.github.weichain._
 import tshy0931.com.github.weichain.model.Block.BlockHeader
 import BlockChainModule._
 

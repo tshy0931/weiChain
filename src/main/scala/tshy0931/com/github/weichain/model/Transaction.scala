@@ -55,17 +55,18 @@ object Transaction {
   type EpochTimeMillis = Long @@ EpochTimeMillisTag
 
   case class Input(value: Double,
-                   source: Either[Coinbase, Output],
+                   source: Output,
                    address: Hash,
                    scriptSig: String,
                    sequence: Long = 0xffffffff)
 
   case class Output(value: Double,
                     address: Hash,
-                    blockIndex: Int,
+                    blockHash: String,
                     txIndex: Int,
                     outputIndex: Int,
-                    scriptPubKey: String)
+                    scriptPubKey: String,
+                    coinbase: Option[Coinbase] = None)
 
   case class Coinbase(script: String)
 }

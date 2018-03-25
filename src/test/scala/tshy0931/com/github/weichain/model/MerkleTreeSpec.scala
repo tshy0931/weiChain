@@ -62,9 +62,7 @@ class MerkleTreeSpec extends FlatSpec with GivenWhenThen with Matchers with Insi
 
     forAll(testFlagsAndHashes) { (txId, flags, hashIndices) =>
 
-      val result: Option[MerkleBlock] = testMerkleTree.deriveMerkleBlockFor(
-        digestor.digest(testTransactions(txId).getBytes("UTF-8"))
-      )(testBlockHeader, 0L)
+      val result: Option[MerkleBlock] = testMerkleTree.deriveMerkleBlockFor(digestor.digest(testTransactions(txId).getBytes("UTF-8")))(testBlockHeader, 0L)
 
       val hashes: Vector[String] = hashIndices map testMerkleTree.hashAt map hashToString
       inside(result) { case Some(MerkleBlock(_, _, hs, fs)) =>
