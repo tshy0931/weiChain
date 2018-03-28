@@ -43,3 +43,18 @@ case class Headers(count: Int,
 
 case class Blocks(count: Int,
                   blockHashes: Vector[Hash])
+
+/** https://bitcoin.org/en/developer-reference#filterload
+  * 02 ......... Filter bytes: 2
+    b50f ....... Filter: 1010 1101 1111 0000
+    0b000000 ... nHashFuncs: 11
+    00000000 ... nTweak: 0/none
+    00 ......... nFlags: BLOOM_UPDATE_NONE
+  */
+case class FilterLoad[A](owner: String,
+                         initialInsertions: Vector[A],
+                         expectedInsertions: Int,
+                         falsePositiveRate: Option[Double])
+
+case class FilterAdd[A](owner: String,
+                        inserts: Vector[A])

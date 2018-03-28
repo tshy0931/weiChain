@@ -1,6 +1,5 @@
 package tshy0931.com.github.weichain.module
 
-import cats._
 import cats.data.Validated
 import cats.syntax.validated._
 import tshy0931.com.github.weichain.model.{Block, Transaction}
@@ -48,7 +47,4 @@ println(srcBlock.get.body.transactions+ " - " +in.source.blockHash)
 
     def isValidScriptResult: TransactionValidation = ??? //TODO: execute scriptSig and scriptPubKey to validate tx
   }
-
-
-
 }

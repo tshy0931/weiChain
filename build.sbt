@@ -33,3 +33,5 @@ libraryDependencies += "org.mockito" % "mockito-all" % "1.9.5" % Test
 libraryDependencies += "com.typesafe.akka" %% "akka-persistence" % "2.5.11"
 
 libraryDependencies += "com.chuusai" %% "shapeless" % "2.3.3"
+
+libraryDependencies += "com.google.guava" % "guava" % "24.0-jre"

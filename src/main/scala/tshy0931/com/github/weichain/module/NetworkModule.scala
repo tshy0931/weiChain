@@ -14,12 +14,14 @@ import akka.http.scaladsl.server.Route
 import tshy0931.com.github.weichain._
 import DigestModule._
 import BlockChainModule._
+import FilterModule._
 import ValidationModule.TransactionValidation._
-import tshy0931.com.github.weichain.message.{Blocks, Headers, MessageHeader, Version}
+import tshy0931.com.github.weichain.message._
 import tshy0931.com.github.weichain.model.Block.BlockHeader
 import tshy0931.com.github.weichain.network.{Address, PeerProperty}
 import ConfigurationModule._
-import tshy0931.com.github.weichain.codec.CodecModule
+import com.google.common.hash.BloomFilter
+import tshy0931.com.github.weichain.codec.CodecModule._
 import tshy0931.com.github.weichain.model.Transaction
 
 import scala.concurrent.Future
@@ -27,13 +29,13 @@ import scala.util.Random
 import scala.collection.concurrent
 import scala.collection.JavaConverters._
 
-object NetworkModule extends CodecModule {
+object NetworkModule {
 
   implicit val system = ActorSystem()
   implicit val materializer = ActorMaterializer()
   implicit val executionContext = system.dispatcher
 
-  val HASH_REGEX = """[A-Fa-f0-9]{64}""".r
+  val REGEX_HASH = """[A-Fa-f0-9]{64}""".r
 
   lazy val log = Logging(system, this.getClass)
 
@@ -56,8 +58,8 @@ object NetworkModule extends CodecModule {
 
   lazy val routes: Route = dataRoute ~ controlRoute
 
-  val dataRoute = {
-    path("data" / "block" / HASH_REGEX) { blockHash =>
+  val dataRoute: Route = {
+    path("data" / "block" / REGEX_HASH) { blockHash =>
       get {
         complete(blockWithHash(blockHash))
       }
@@ -105,12 +107,12 @@ object NetworkModule extends CodecModule {
 //          ???
 //        }
 //    } ~
-    path("data" / "block" / HASH_REGEX / HASH_REGEX / "merkleblock") { (blockHash, txHash) =>
+    path("data" / "block" / REGEX_HASH / REGEX_HASH / "merkleblock") { (blockHash, txHash) =>
       get {
         complete(merkleBlockOf(blockHash, txHash))
       }
     }
-    path("data" / "tx" / HASH_REGEX) { txHash =>
+    path("data" / "tx" / REGEX_HASH) { txHash =>
       post {
         decodeRequest {
           entity(as[Transaction]) { tx =>
@@ -122,14 +124,9 @@ object NetworkModule extends CodecModule {
         }
       }
     }
-//    path("data" / PathEnd) {
-//      get {
-//        ???
-//      }
-//    }
   }
 
-  val controlRoute = {
+  val controlRoute: Route = {
     path("control" / "addr") {
       get {
         complete(peers.keys.toVector)
@@ -144,56 +141,68 @@ object NetworkModule extends CodecModule {
         }
       }
     } ~
-//      path("control" / "alert") {
-//        get {
-//          ???
-//        } ~
-//          post {
-//            ???
-//          }
+//    path("control" / "alert") {
+//      get {
+//        ???
 //      } ~
-//      path("control" / "feefilter") {
-//        get {
-//          ???
-//        } ~
-//          post {
-//            ???
-//          }
-//      } ~
-//      path("control" / "filteradd") {
-//        get {
-//          ???
-//        } ~
-//          post {
-//            ???
-//          }
-//      } ~
-//      path("control" / "filterclear") {
-//        get {
-//          ???
-//        } ~
-//          post {
-//            ???
-//          }
-//      } ~
-//      path("control" / "filterload") {
-//        get {
-//          ???
-//        } ~
-//          post {
-//            ???
-//          }
-//      } ~
-      path("control" / "ping") {
-        get {
-          complete("pong")
-        }
-      } ~
-//      path("control" / "pong") {
-//        get {
+//        post {
 //          ???
 //        }
+//    } ~
+//    path("control" / "feefilter") {
+//      get {
+//        ???
 //      } ~
+//        post {
+//          ???
+//        }
+//    } ~
+    path("control" / "filteradd") {
+      post {
+        decodeRequest {
+          parameter('type) {
+            case "tx" =>
+              entity(as[FilterAdd[Transaction]]) { payload =>
+                complete(addToFilter[Transaction](payload))
+              }
+            case "address" =>
+              entity(as[FilterAdd[Address]]) { payload =>
+                complete(addToFilter[Address](payload))
+              }
+          }
+        }
+      }
+    } ~
+    path("control" / "filterclear" / REGEX_HASH) { owner =>
+      delete {
+        parameter('type) {
+          case "tx" => complete(deleteFilter[Transaction](owner))
+          case "address" => complete(deleteFilter[Address](owner))
+        }
+      }
+    } ~
+    path("control" / "filterload") {
+      post {
+        decodeRequest {
+          parameter('type) {
+            case "tx"      =>
+              entity(as[FilterLoad[Transaction]]) { payload =>
+                complete(loadFilter[Transaction](payload))
+              }
+            case "address" =>
+              entity(as[FilterLoad[Address]]) { payload =>
+                complete(loadFilter[Address](payload))
+              }
+            case other     => complete(400 -> s"Unsupported filter type: $other")
+          }
+        }
+      }
+    } ~
+    path("control" / "ping") {
+      get {
+        complete("pong")
+      }
+    } ~
 //      path("control" / "reject") {
 //        get {
 //          ???
@@ -202,33 +211,37 @@ object NetworkModule extends CodecModule {
 //            ???
 //          }
 //      } ~
-      path("control" / "sendheaders") {
-        get {
-          extractClientIP { ip =>
-            peers.replace(ip.toAddress, PeerProperty(active = true, sendHeaders = true))
-            complete("ok")
-          }
-        }
-      } ~
-      path("control" / "verack") {
-        post {
-          val header = MessageHeader(commandName = "version", payloadSize = 0L, checksum = digest(digest("".getBytes("UTF-8"))))
-          complete("verack")
-        }
-      } ~
-      path("control" / "version") {
+    path("control" / "sendheaders") {
+      get {
         extractClientIP { ip =>
-          post {
-              entity(as[Version]) { ver =>
+          peers.replace(ip.toAddress, PeerProperty(active = true, sendHeaders = true))
+          complete("ok")
+        }
+      }
+    } ~
+    path("control" / "verack") {
+      post {
+        val header = MessageHeader(
+          commandName = "version",
+          payloadSize = 0L,
+          checksum = digest(digest(emptyHash)).asString
+        )
+        complete(header)
+      }
+    } ~
+    path("control" / "version") {
+      extractClientIP { ip =>
+        post {
+          entity(as[Version]) { ver =>
 
-                peers.putIfAbsent(ip.toAddress, PeerProperty(active = true, sendHeaders = false))
-                val msg = Version(version,services, System.currentTimeMillis(), Random.nextLong(), chainHeight, relay)
-//                val header = MessageHeader(commandName = "version", payloadSize = 0L, checksum = digest(digest(msg.toString.getBytes("UTF-8"))))
-                complete(msg)
-              }
+            peers.putIfAbsent(ip.toAddress, PeerProperty(active = true, sendHeaders = false))
+            val msg = Version(version,services, System.currentTimeMillis(), Random.nextLong(), chainHeight, relay)
+//            val header = MessageHeader(commandName = "version", payloadSize = 0L, checksum = digest(digest(msg.toString.getBytes("UTF-8"))))
+            complete(msg)
           }
         }
       }
+    }
   }
 
   implicit class remoteAddressOps(remoteAddress: RemoteAddress) {

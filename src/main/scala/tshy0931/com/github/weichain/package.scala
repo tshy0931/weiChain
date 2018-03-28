@@ -4,6 +4,10 @@ package object weichain {
 
   type Hash = Array[Byte]
 
-  implicit def hashToString(array: Hash): String = array.map("%02x".format(_)).mkString
+  val emptyHash: Hash = "".getBytes("UTF-8")
 
+  implicit class HashOps(hash: Hash) {
+
+    def asString: String = hash.map("%02x".format(_)).mkString
+  }
 }
