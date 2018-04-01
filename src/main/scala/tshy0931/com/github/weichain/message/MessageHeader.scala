@@ -11,6 +11,6 @@ package tshy0931.com.github.weichain.message
   * @param checksum    - First 4 bytes of SHA256(SHA256(payload)) in internal byte order.
   */
 case class MessageHeader(startString: String = "f9beb4d9", // Mainnet
-                         commandName: String,
-                         payloadSize: Long,
-                         checksum: String)
+                         commandName: String = "unused",
+                         payloadSize: Long = 0L,
+                         checksum: String = "")

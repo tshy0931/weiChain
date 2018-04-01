@@ -21,13 +21,14 @@ object BlockChainModule {
     header = BlockHeader(
       hash = genesisHash,
       version = 1,
-      prevBlockHash = genesisPrevHash,
+      prevHeaderHash = genesisPrevHash,
       merkleRoot = genesisMerkleRoot,
       time = 1521820483592L,
       nBits = 486604799,
       nonce = genesisNonce
     ),
     body = BlockBody(
+      headerHash = genesisHash,
       merkleTree = MerkleTree(Vector(genesisMerkleRoot), 1),
       nTx = 1,
       size = 100L,
@@ -45,8 +46,8 @@ object BlockChainModule {
   var blocksSynced: Boolean = false
   var headersSynced: Boolean = false
 
-  def latestBlock: Block = bestLocalBlockChain(bestLocalHeaderChain.last.hash)
-  def blockAt(index: Int): Block = bestLocalBlockChain(bestLocalHeaderChain(index).hash)
+  def latestBlock: Block = bestLocalBlockChain(bestLocalHeaderChain.last.hash.asString)
+  def blockAt(index: Int): Block = bestLocalBlockChain(bestLocalHeaderChain(index).hash.asString)
   def blockWithHash(hash: String): Option[Block] = bestLocalBlockChain.get(hash)
 
   def merkleBlockOf(blockHash: String, txHash: String): Option[MerkleBlock] = {
@@ -57,7 +58,7 @@ object BlockChainModule {
   }
 
   def getBlocksByHashes(hashes: Vector[Hash]): Vector[Option[Block]] = {
-    hashes map { bestLocalBlockChain.get(_) }
+    hashes map { hash => bestLocalBlockChain.get(hash.asString) }
   }
 
   /**
@@ -73,14 +74,14 @@ object BlockChainModule {
     var forkIndex: Int = 0
     val peerChain: Iterator[BlockHeader] = headers.iterator
     val peerChainHead: BlockHeader = peerChain.next
-    val matchingChain: Vector[BlockHeader] = bestLocalHeaderChain.dropWhile( header => hashToString(header.hash) != hashToString(peerChainHead.hash) )
+    val matchingChain: Vector[BlockHeader] = bestLocalHeaderChain.dropWhile( header => header.hash.asString != peerChainHead.hash.asString )
 
     if(matchingChain.isEmpty) {
       (forkIndex, bestLocalHeaderChain take count)
     } else {
       val followingChain: Vector[BlockHeader] = (matchingChain drop 1) dropWhile { header =>
         forkIndex += 1
-        peerChain.hasNext && hashToString(header.hash) == hashToString(peerChain.next.hash)
+        peerChain.hasNext && header.hash.asString == peerChain.next.hash.asString
       } take count
 
       (forkIndex, followingChain)

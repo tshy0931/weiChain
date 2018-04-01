@@ -62,7 +62,7 @@ object Transaction {
 
   case class Output(value: Double,
                     address: Hash,
-                    blockHash: String,
+                    blockHash: Hash,
                     txIndex: Int,
                     outputIndex: Int,
                     scriptPubKey: String,

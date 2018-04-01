@@ -1,16 +1,39 @@
 package tshy0931.com.github.weichain.network
 
+import akka.http.scaladsl.model.HttpResponse
+import tshy0931.com.github.weichain.model.Block.BlockHeader
 import tshy0931.com.github.weichain.model.Transaction
 
 /**
   * This trait defines behaviours required to perform network communications in the blockchain.
   */
-trait Protocol {
+object Protocol {
 
-  def disconnect
-  def gossip(transaction: Transaction)
-  def broadcastPeers
-  def send[A](value: A)
+  sealed trait ResponseEnvelope
+  final case class EndpointResponse(endpoint: String, peer: Address, response: HttpResponse) extends ResponseEnvelope
+  final case class HeadersResponse(lastConfirmedHeader: BlockHeader, response: HttpResponse) extends ResponseEnvelope
+  final case class TxResponse(peer: Address, response: HttpResponse) extends ResponseEnvelope
+
+  object Endpoints {
+
+    val DOMAIN_DATA = "data"
+    val BLOCK = "block"
+    val BLOCKS = "blocks"
+    val TX = "tx"
+    val HEADERS = "headers"
+    val MERKLEBLOCK = "merkleblock"
+
+    val DOMAIN_CTRL = "control"
+    val ADDRESS = "addr"
+    val FILTERADD = "filteradd"
+    val FILTERCLEAR = "filterclear"
+    val FILTERLOAD = "filterload"
+    val PING = "ping"
+    val PONG = "pong"
+    val SENDHEADERS = "sendheaders"
+    val VERACK = "verack"
+    val VERSION = "version"
+  }
 
   //TODO: Periodically check peer liveness
   // In order to maintain a connection with a peer,

@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+package tshy0931.com.github.weichain.model.proto;
+
+import "scalapb/scalapb.proto";
+
+option (scalapb.options) = {
+  primitive_wrappers: true
+};
+
+message CoinbaseProto {
+    string script = 1;
+}
+
+message OutputProto {
+    double value = 1;
+    bytes address = 2;
+    bytes blockHash = 3;
+    int32 txIndex = 4;
+    int32 outputIndex = 5;
+    string scriptPubKey = 6;
+    CoinbaseProto coinbase = 7;
+}
+
+message InputProto {
+    double value = 1;
+    OutputProto source = 2;
+    bytes address = 3;
+    string scriptSig = 4;
+    int64 sequence = 5;
+}
+
+message TransactionProto {
+    bytes hash = 1;
+    int32 version = 2;
+    int32 nTxIn = 3;
+    repeated InputProto txIn = 4;
+    int32 nTxOut = 5;
+    repeated OutputProto txOut = 6;
+    int32 lockTime = 7;
+    int64 blockIndex = 8;
+    double txFee = 9;
+}
+
+message BlockHeaderProto {
+    bytes hash = 1;
+    int32 version = 2;
+    bytes prevHeaderHash = 3;
+    bytes merkleRoot = 4;
+    int64 time = 5;
+    int64 nBits = 6;
+    int64 nonce = 7;
+}
+
+message BlockBodyProto {
+    bytes headerHash = 1;
+    MerkleTreeProto merkleTree = 2;
+    int32 nTx = 3;
+    int64 size = 4;
+    repeated TransactionProto transactions = 5;
+}
+
+message MerkleTreeProto {
+    repeated bytes hashes = 1;
+}

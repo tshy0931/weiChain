@@ -11,8 +11,8 @@ object ConfigurationModule {
   val services: Long = config.getLong("services")
   val relay: Boolean = config.getBoolean("relay")
 
-  val hostName = config.getString("net.host")
-  val port = config.getInt("net.port")
+  val hostName: String = config.getString("net.host")
+  val port: Int = config.getInt("net.port")
 
   val seeds = List(
     Address("localhost", 8334),
@@ -22,4 +22,6 @@ object ConfigurationModule {
 
   val maxHeadersPerRequest: Int = config.getInt("blockchain.max-headers-per-request")
 
+  val redisHost: String = config.getString("db.redis.host")
+  val redisPort: Int = config.getInt("db.redis.port")
 }

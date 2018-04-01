@@ -8,9 +8,9 @@ import tshy0931.com.github.weichain.module.DigestModule._
 
 case class MerkleTree(hashes: Vector[Hash], nTx: Int) {
 
-  private lazy val lookup: Map[String, Int] = hashes.map(hashToString).zipWithIndex.toMap
+  private lazy val lookup: Map[String, Int] = hashes.map(_.asString).zipWithIndex.toMap
 
-  def indexOf(txHash: Hash): Option[Int] = lookup.get(txHash)
+  def indexOf(txHash: Hash): Option[Int] = lookup.get(txHash.asString)
 }
 
 object MerkleTree {

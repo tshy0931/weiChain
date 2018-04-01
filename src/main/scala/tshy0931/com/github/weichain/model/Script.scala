@@ -11,8 +11,8 @@ object Script {
   object P2PKH {
 
     def pubKey(pubKey: String) = {
-      val pubKeyHash: String = digest(pubKey)
-      s"OP_DUP OP_HASH160 $pubKeyHash OP_EQUALVERIFY OP_CHECKSIG"
+      val pubKeyHash = digest(pubKey)
+      s"OP_DUP OP_HASH160 ${pubKeyHash.asString} OP_EQUALVERIFY OP_CHECKSIG"
     }
 
     def sig(secretKey: String, pubKey: String) = {

@@ -2,6 +2,7 @@ package tshy0931.com.github.weichain.message
 
 import tshy0931.com.github.weichain.Hash
 import tshy0931.com.github.weichain.model.Block.BlockHeader
+import tshy0931.com.github.weichain.model.Transaction
 
 /** Example: https://bitcoin.org/en/developer-reference#merkleblock
   * 01000000 ........................... Block version: 1
@@ -51,10 +52,10 @@ case class Blocks(count: Int,
     00000000 ... nTweak: 0/none
     00 ......... nFlags: BLOOM_UPDATE_NONE
   */
-case class FilterLoad[A](owner: String,
-                         initialInsertions: Vector[A],
-                         expectedInsertions: Int,
-                         falsePositiveRate: Option[Double])
+case class FilterLoad(owner: String,
+                      initialInsertions: Vector[Transaction],
+                      expectedInsertions: Int,
+                      falsePositiveRate: Option[Double])
 
-case class FilterAdd[A](owner: String,
-                        inserts: Vector[A])
+case class FilterAdd(owner: String,
+                     inserts: Vector[Transaction])

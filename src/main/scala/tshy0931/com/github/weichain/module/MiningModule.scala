@@ -7,6 +7,13 @@ import DigestModule._
   */
 object MiningModule {
 
+  /**
+    * Difficulty of mining, number of '0's required in a valid block header hash
+    * should vary regarding specific rules.
+    *
+    */
+  def difficulty: String = "00"
+
   def findNonce(hash: Array[Byte], difficulty: Int): (Int, Array[Byte]) = {
 
     var nonce: Int = 0
