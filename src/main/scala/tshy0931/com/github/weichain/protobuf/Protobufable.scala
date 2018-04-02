@@ -2,11 +2,12 @@ package tshy0931.com.github.weichain.protobuf
 
 import cats.syntax.option._
 import com.google.protobuf.ByteString
-import tshy0931.com.github.weichain.model.Block.BlockHeader
-import tshy0931.com.github.weichain.model.Transaction
+import tshy0931.com.github.weichain.Hash
+import tshy0931.com.github.weichain.model.Block.{BlockBody, BlockHeader}
+import tshy0931.com.github.weichain.model.{MerkleTree, Transaction}
 import tshy0931.com.github.weichain.model.Transaction.{Coinbase, Input, Output}
 import tshy0931.com.github.weichain.model.proto.model._
-import monocle._
+import monocle.Iso
 
 trait Protobufable[A] {
 
@@ -109,6 +110,32 @@ object Protobufable {
       nonce = header.nonce
   )}
 
+  val blockBodyIso = Iso[BlockBodyProto, BlockBody]
+  { proto => BlockBody(
+      headerHash = proto.headerHash,
+      merkleTree = (proto.merkleTree map merkleTreeIso.get) getOrElse MerkleTree.empty.value,
+      nTx = proto.nTx,
+      size = proto.size,
+      transactions = proto.transactions map txIso.get toVector
+  )}
+  { body => BlockBodyProto(
+      headerHash = body.headerHash,
+      merkleTree = body.merkleTree.some map merkleTreeIso.reverseGet,
+      nTx = body.nTx,
+      size = body.size,
+      transactions = body.transactions map txIso.reverseGet
+  )}
+
+  val merkleTreeIso = Iso[MerkleTreeProto, MerkleTree]
+  { proto => MerkleTree(
+      hashes = proto.hashes map byteStringToByteArray toVector,
+      nTx = proto.nTx
+  )}
+  { tree => MerkleTreeProto(
+      hashes = tree.hashes map byteArrayToByteString,
+      nTx = tree.nTx
+  )}
+
   implicit val txProtobufable: Protobufable[Transaction] = instance[Transaction]
     { txIso reverseGet _ toByteArray }
     { txIso get TransactionProto.parseFrom(_) }
@@ -117,4 +144,7 @@ object Protobufable {
     { blockHeaderIso reverseGet _ toByteArray }
     { blockHeaderIso get BlockHeaderProto.parseFrom(_) }
 
+  implicit val blkBodyProtobufable: Protobufable[BlockBody] = instance[BlockBody]
+    { blockBodyIso reverseGet _ toByteArray }
+    { blockBodyIso get BlockBodyProto.parseFrom(_) }
 }

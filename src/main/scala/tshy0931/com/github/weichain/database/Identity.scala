@@ -16,10 +16,21 @@ object Identity {
     override def identity: A => String = idFunc
   }
 
-  implicit val blockHeaderId: Identity[BlockHeader] = instance(blk => s"blk:${blk.hash.asString}")
-  implicit val blockBodyId: Identity[BlockBody] = instance(blk => s"blk:${blk.headerHash.asString}")
-  implicit val txId: Identity[Transaction] = instance(tx => s"tx:${tx.hash.asString}")
-  implicit val addressId: Identity[Address] = instance(addr => s"addr:${addr.asString}")
+  object Keyspace {
+    val SORTEDSET_BLOCK_HEADER = "bhsset"
+    val SORTEDSET_BLOCK_BODY   = "bbsset"
+    val BLOCK_HEADER           = "blkhdr"
+    val BLOCK_BODY             = "blkbdy"
+    val TX                     = "tx"
+    val ADDRESS_HASH           = "addrhm"
+  }
+
+  import Keyspace._
+
+  implicit val blockHeaderId: Identity[BlockHeader] = instance(blk => s"$BLOCK_HEADER:${blk.hash.asString}")
+  implicit val blockBodyId: Identity[BlockBody] = instance(blk => s"$BLOCK_BODY:${blk.headerHash.asString}")
+  implicit val txId: Identity[Transaction] = instance(tx => s"$TX:${tx.hash.asString}")
+  implicit val addressId: Identity[Address] = instance(addr => s"$ADDRESS_HASH:${addr.asString}")
 
   implicit class PrimaryKeyOps[A](item: A) {
 

@@ -3,6 +3,7 @@ package tshy0931.com.github.weichain.model
 import tshy0931.com.github.weichain._
 import org.scalatest._
 import org.scalatest.prop.TableDrivenPropertyChecks
+import tshy0931.com.github.weichain._
 import tshy0931.com.github.weichain.message.MerkleBlock
 import tshy0931.com.github.weichain.model.Block.BlockHeader
 import tshy0931.com.github.weichain.module.DigestModule._
@@ -41,21 +42,21 @@ class MerkleTreeSpec extends FlatSpec with GivenWhenThen with Matchers with Insi
     val tree1 = MerkleTree.build(testTransactions)
     val tree2 = MerkleTree.build(testTransactions)
 
-    tree1.hashes.map(hashToString) shouldBe tree2.hashes.map(hashToString)
+    tree1.hashes.map(_.asString) shouldBe tree2.hashes.map(_.asString)
   }
 
   it should "corretly derive path from merkle root to a given transaction if it exists in this merkle tree" in {
 
     forAll(testPaths) { (index, expectedPath) =>
       val target: String = testTransactions(index)
-      val path: Option[List[Int]] = testMerkleTree.derivePath(digestor.digest(target.getBytes("UTF-8")))
+      val path: Option[List[Int]] = testMerkleTree.derivePath(digest(target).asString)
       path should contain(expectedPath)
     }
   }
 
   it should "return None as path when the transaction doesn't exist in the merkle tree" in {
 
-    testMerkleTree.derivePath(digestor.digest("no such tx".getBytes("UTF-8"))) shouldBe None
+    testMerkleTree.derivePath(digest("no such tx").asString) shouldBe None
   }
 
   it should "correctly derive MerkleBlock flags and hashes for a given transaction" in {
@@ -64,10 +65,10 @@ class MerkleTreeSpec extends FlatSpec with GivenWhenThen with Matchers with Insi
 
       val result: Option[MerkleBlock] = testMerkleTree.deriveMerkleBlockFor(digestor.digest(testTransactions(txId).getBytes("UTF-8")))(testBlockHeader, 0L)
 
-      val hashes: Vector[String] = hashIndices map testMerkleTree.hashAt map hashToString
+      val hashes: Vector[String] = hashIndices map testMerkleTree.hashAt map (_.asString)
       inside(result) { case Some(MerkleBlock(_, _, hs, fs)) =>
         fs shouldBe flags
-        (hs map hashToString) shouldBe hashes
+        (hs map {_.asString}) shouldBe hashes
       }
     }
   }

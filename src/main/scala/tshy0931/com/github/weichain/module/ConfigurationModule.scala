@@ -1,6 +1,9 @@
 package tshy0931.com.github.weichain.module
 
 import com.typesafe.config.{Config, ConfigFactory}
+import monix.eval.Coeval
+import monix.execution.Scheduler
+import monix.execution.schedulers.SchedulerService
 import tshy0931.com.github.weichain.network.Address
 
 object ConfigurationModule {
@@ -24,4 +27,8 @@ object ConfigurationModule {
 
   val redisHost: String = config.getString("db.redis.host")
   val redisPort: Int = config.getInt("db.redis.port")
+
+  val SCHEDULER_FOR_BLOCK_DOWNLOAD: String = "block-download-scheduler"
+  val blockDownloadScheduler: Coeval[SchedulerService] =
+    Coeval.evalOnce(Scheduler.io(name = SCHEDULER_FOR_BLOCK_DOWNLOAD))
 }

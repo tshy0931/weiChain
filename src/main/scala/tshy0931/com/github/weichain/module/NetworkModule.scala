@@ -7,10 +7,11 @@ import akka.actor.ActorSystem
 import akka.event.Logging
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.Http.ServerBinding
-import akka.http.scaladsl.model.{RemoteAddress, StatusCodes}
+import akka.http.scaladsl.model.StatusCodes._
+import akka.http.scaladsl.model.{HttpResponse, RemoteAddress, ResponseEntity, StatusCodes}
 import akka.stream.ActorMaterializer
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.Route
+import akka.http.scaladsl.server.{Route, StandardRoute}
 import tshy0931.com.github.weichain._
 import DigestModule._
 import BlockChainModule._
@@ -20,14 +21,20 @@ import tshy0931.com.github.weichain.message._
 import tshy0931.com.github.weichain.model.Block.BlockHeader
 import tshy0931.com.github.weichain.network.{Address, PeerProperty}
 import ConfigurationModule._
+import akka.http.scaladsl.marshalling.Marshal
+import akka.pattern.CircuitBreaker
+import cats.data.OptionT
 import cats.data.Validated.{Invalid, Valid}
+import monix.eval.Task
+import monix.execution.CancelableFuture
 import tshy0931.com.github.weichain.codec.CodecModule._
-import tshy0931.com.github.weichain.model.Transaction
+import tshy0931.com.github.weichain.model.{Block, Transaction}
 
 import scala.concurrent.Future
-import scala.util.Random
+import scala.util.{Failure, Random, Success}
 import scala.collection.concurrent
 import scala.collection.JavaConverters._
+import scala.concurrent.duration._
 
 object NetworkModule {
 
@@ -37,13 +44,20 @@ object NetworkModule {
 
   implicit val system = ActorSystem()
   implicit val materializer = ActorMaterializer()
-  implicit val executionContext = system.dispatcher
+  import monix.execution.Scheduler.Implicits.global
 
   val REGEX_HASH = """[A-Fa-f0-9]{64}""".r
 
   lazy val log = Logging(system, this.getClass)
 
   case class ConnectionException(msg: String)
+
+  private val circuitBreaker: CircuitBreaker = new CircuitBreaker(
+    system.scheduler,
+    maxFailures = 3,
+    callTimeout = 10 seconds,
+    resetTimeout = 1 seconds
+  )
 
   var networkBinding: Http.ServerBinding = _
 
@@ -63,32 +77,45 @@ object NetworkModule {
   final case object Routes {
 
     lazy val dataRoute: Route = {
-      path( DOMAIN_DATA / BLOCK / REGEX_HASH ) { blockHash =>
+      path( DOMAIN_DATA / BLOCK / REGEX_HASH / PathEnd ) { blockHash =>
         get {
-          complete(blockWithHash(blockHash))
+          val findBlock: CancelableFuture[Option[Block]] = blockWithHash(blockHash).value.runAsync
+          onCompleteWithBreaker(circuitBreaker)(findBlock) {
+            case Success(Some(block)) => complete(OK -> block)
+            case Success(None)        => complete(NotFound -> s"no block with hash $blockHash")
+            case Failure(err)         => complete(InternalServerError -> err)
+          }
         }
       } ~
-      path( DOMAIN_DATA / BLOCKS ) {
+      path( DOMAIN_DATA / BLOCKS / PathEnd ) {
         post {
           decodeRequest {
             entity(as[Blocks]) { blocks =>
-              complete(getBlocksByHashes(blocks.blockHashes))
+              val tasks: Vector[Task[Option[Block]]] = blocks.blockHashes map { hash =>
+                blockWithHash(hash.asString).value
+              }
+              onCompleteWithBreaker(circuitBreaker)(Task.sequence(tasks).runAsync) {
+                case Success(blocks) => complete(OK -> blocks)
+                case Failure(err)    => complete(InternalServerError -> err)
+              }
             }
           }
         }
       } ~
-      path( DOMAIN_DATA / HEADERS ) {
+      path( DOMAIN_DATA / HEADERS / PathEnd ) {
         post {
           decodeRequest {
             parameter('count.as[Int].?) { count =>
               //          headerValueByName("X-Header-Count-Requested") { count =>
               entity(as[Vector[BlockHeader]]) { blockHeaders =>
-
                 if(blockHeaders.isEmpty){
-                  complete(400 -> "No block header specified in request.")
-                }else{
-                  val (forkIndex, headers) = searchHeadersAfter(blockHeaders, count.getOrElse(maxHeadersPerRequest))
-                  complete(Headers(headers.size, forkIndex, headers))
+                  complete(BadRequest -> "No block header specified in request.")
+                } else {
+                  val task: Task[(Int, Vector[BlockHeader])] = searchHeadersAfter(blockHeaders, count.getOrElse(maxHeadersPerRequest))
+                  onCompleteWithBreaker(circuitBreaker)(task.runAsync){
+                    case Success((forkIndex, headers)) => complete(Headers(headers.size, forkIndex, headers))
+                    case Failure(err)                  => complete(InternalServerError -> err)
+                  }
                 }
               }
             }
@@ -111,22 +138,24 @@ object NetworkModule {
       //          ???
       //        }
       //    } ~
-      path( DOMAIN_DATA / BLOCK / REGEX_HASH / REGEX_HASH / MERKLEBLOCK ) { (blockHash, txHash) =>
+      path( DOMAIN_DATA / BLOCK / REGEX_HASH / REGEX_HASH / MERKLEBLOCK / PathEnd ) { (blockHash, txHash) =>
         get {
-          complete(merkleBlockOf(blockHash, txHash))
+          val task = merkleBlockOf(blockHash, txHash).value
+          onCompleteWithBreaker(circuitBreaker)(task.runAsync) {
+            case Success(Some(merkleBlock)) => complete(OK -> merkleBlock)
+            case Success(None)              => complete(NotFound -> s"merkle block not found for block $blockHash tx $txHash")
+            case Failure(err)               => complete(InternalServerError -> err)
+          }
         }
       } ~
-      path( DOMAIN_DATA / TX / REGEX_HASH ) { txHash =>
+      path( DOMAIN_DATA / TX / PathEnd ) {
         post {
           decodeRequest {
             entity(as[Transaction]) { tx =>
-              verifyTx(tx) match {
-                case Valid(_) =>
-                  //TODO: Decide whether relay this tx
-                  memPool.putIfAbsent(txHash, tx)
-                  complete(s"tx $txHash received")
-
-                case Invalid(err) => complete(StatusCodes.BadRequest -> err)
+              onCompleteWithBreaker(circuitBreaker)(verifyTx(tx).runAsync) {
+                case Success(Valid(_))     => complete(OK -> s"transaction ${tx.hash} is validated and received.")
+                case Success(Invalid(err)) => complete(BadRequest -> err)
+                case Failure(err)          => complete(InternalServerError -> err)
               }
             }
           }
@@ -135,7 +164,7 @@ object NetworkModule {
     }
 
     lazy val controlRoute: Route = {
-      path( DOMAIN_CTRL / ADDRESS ) {
+      path( DOMAIN_CTRL / ADDRESS / PathEnd ) {
         get {
           complete(peers.keys.toVector)
           //      complete(Marshal(peers.keys.toList).to[List[Address]])
@@ -165,7 +194,7 @@ object NetworkModule {
         //          ???
         //        }
         //    } ~
-      path( DOMAIN_CTRL / FILTERADD ) {
+      path( DOMAIN_CTRL / FILTERADD / PathEnd ) {
         post {
           decodeRequest {
             parameter('type) {
@@ -181,7 +210,7 @@ object NetworkModule {
           }
         }
       } ~
-      path( DOMAIN_CTRL / FILTERCLEAR / REGEX_HASH ) { owner =>
+      path( DOMAIN_CTRL / FILTERCLEAR / REGEX_HASH / PathEnd ) { owner =>
         delete {
           parameter('type) {
             case "tx" => complete(deleteTxFilter(owner))
@@ -189,7 +218,7 @@ object NetworkModule {
           }
         }
       } ~
-      path( DOMAIN_CTRL / FILTERLOAD ) {
+      path( DOMAIN_CTRL / FILTERLOAD / PathEnd ) {
         post {
           decodeRequest {
             parameter('type) {
@@ -206,7 +235,7 @@ object NetworkModule {
           }
         }
       } ~
-      path( DOMAIN_CTRL / PING ) {
+      path( DOMAIN_CTRL / PING / PathEnd ) {
         get {
           complete("pong")
         }
@@ -219,7 +248,7 @@ object NetworkModule {
       //            ???
       //          }
       //      } ~
-      path( DOMAIN_CTRL / SENDHEADERS ) {
+      path( DOMAIN_CTRL / SENDHEADERS / PathEnd ) {
         get {
           extractClientIP { ip =>
             peers.replace(ip.toAddress, PeerProperty(active = true, sendHeaders = true))
@@ -227,7 +256,7 @@ object NetworkModule {
           }
         }
       } ~
-      path( DOMAIN_CTRL / VERACK ) {
+      path( DOMAIN_CTRL / VERACK / PathEnd ) {
         post {
           val header = MessageHeader(
             commandName = "version",
@@ -237,7 +266,7 @@ object NetworkModule {
           complete(header)
         }
       } ~
-      path( DOMAIN_CTRL / VERSION ) {
+      path( DOMAIN_CTRL / VERSION / PathEnd ) {
         extractClientIP { ip =>
           post {
             entity(as[Version]) { ver =>

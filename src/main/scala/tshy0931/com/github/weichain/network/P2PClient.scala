@@ -1,7 +1,5 @@
 package tshy0931.com.github.weichain.network
 
-import java.util.concurrent.ConcurrentHashMap
-
 import cats.syntax.validated._
 import akka.actor.{Actor, ActorLogging, ActorSystem}
 import akka.http.scaladsl.Http
@@ -9,6 +7,7 @@ import akka.http.scaladsl.model._
 import akka.http.scaladsl.unmarshalling.{FromEntityUnmarshaller, Unmarshal}
 import akka.http.scaladsl.model.HttpMethods._
 import akka.stream.ActorMaterializer
+import tshy0931.com.github.weichain.module.BlockChainModule._
 import tshy0931.com.github.weichain.module.ConfigurationModule._
 import tshy0931.com.github.weichain.module.ValidationModule._
 import BlockHeaderValidation._
@@ -25,6 +24,7 @@ import tshy0931.com.github.weichain.database.Database
 import tshy0931.com.github.weichain.message._
 import tshy0931.com.github.weichain.model.Block.BlockHeader
 import tshy0931.com.github.weichain.network.Protocol.{EndpointResponse, HeadersResponse, ResponseEnvelope}
+import scala.concurrent.duration._
 
 class P2PClient extends Actor with ActorLogging {
 
@@ -45,7 +45,7 @@ class P2PClient extends Actor with ActorLogging {
 //        //TODO: persist block
 //      }
 
-    case EndpointResponse(VERSION, peer, HttpResponse(StatusCodes.OK, headers, entity, _)) =>
+    case EndpointResponse(VERSION, peer, HttpResponse(StatusCodes.OK, _, entity, _)) =>
       parse[Version](entity) { remoteVersion =>
         if (remoteVersion.version > version) {
           log.warning("local version is not latest, remote version {}, local versoin {}", remoteVersion.version, version)
@@ -53,31 +53,41 @@ class P2PClient extends Actor with ActorLogging {
         request[MessageHeader](MessageHeader(), peer.asUri(DOMAIN_CTRL, VERACK)){ EndpointResponse(VERACK, peer, _) }
       }
 
-    case EndpointResponse(VERACK, peer, HttpResponse(StatusCodes.OK, headers, entity, _)) =>
+    case EndpointResponse(VERACK, peer, HttpResponse(StatusCodes.OK, _, entity, _)) =>
       // TODO: start IBD, use headers-first style
+      entity.discardBytes(materializer)
       request[MessageHeader](MessageHeader(), peer.asUri(DOMAIN_CTRL, HEADERS)) { EndpointResponse(VERACK, peer, _) }
 
-    case HeadersResponse(lastConfirmedHeader, HttpResponse(StatusCodes.OK, _, entity, _)) =>
+    case HeadersResponse(headersSentInRequest, HttpResponse(StatusCodes.OK, _, entity, _)) =>
 
       parse[Headers](entity) { case Headers(count, forkIndex, headers) =>
         Task.eval {
           // TODO: How to trigger async block downloads?
-          count match {
+          val lastConfirmedHeader: BlockHeader = if(forkIndex == 0) {
+            genesisBlock.value.header
+          } else {
+            headersSentInRequest(forkIndex - 1)
+          }
+          val a = count match {
             case 0 => ValidationError("no block header received from peer", headers).invalid
-            case _ => headers.foldLeft(lastConfirmedHeader.valid[ValidationError[BlockHeader]]) { (acc, curr) =>
-              acc match {
-                case Valid(prev) => verifyHeaders(prev, curr)
-                case invalid => invalid
+            case _ =>
+              headers.foldLeft(lastConfirmedHeader.valid[ValidationError[BlockHeader]]) { (acc, curr) =>
+                acc match {
+                  case Valid(prev) => verifyHeaders(prev, curr) runSyncUnsafe(30 seconds) //TODO - risky sync call, improve this
+                  case invalid => invalid
+                }
               }
-            }
           }
           // overwrite forked headers
           if (forkIndex < headers.size) {
-            headers.takeRight(headers.size - forkIndex) foreach {
+            headers.takeRight(headers.size - forkIndex) map {
               the[Database[BlockHeader]].save
             }
           }
-        } runAsync
+        } runOnComplete {
+          case Success(a) =>
+          case Failure(err) =>
+        }
       }
   }
 

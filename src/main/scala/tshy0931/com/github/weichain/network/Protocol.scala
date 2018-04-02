@@ -11,7 +11,7 @@ object Protocol {
 
   sealed trait ResponseEnvelope
   final case class EndpointResponse(endpoint: String, peer: Address, response: HttpResponse) extends ResponseEnvelope
-  final case class HeadersResponse(lastConfirmedHeader: BlockHeader, response: HttpResponse) extends ResponseEnvelope
+  final case class HeadersResponse(headersSentInRequest: Vector[BlockHeader], response: HttpResponse) extends ResponseEnvelope
   final case class TxResponse(peer: Address, response: HttpResponse) extends ResponseEnvelope
 
   object Endpoints {

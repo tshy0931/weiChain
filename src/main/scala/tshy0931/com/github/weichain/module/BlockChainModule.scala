@@ -2,11 +2,18 @@ package tshy0931.com.github.weichain.module
 
 import java.util.concurrent.ConcurrentHashMap
 
+import cats.syntax.all._
 import tshy0931.com.github.weichain._
 import tshy0931.com.github.weichain.model.{Block, MerkleTree, Transaction}
 import tshy0931.com.github.weichain.model.Block.{BlockBody, BlockHeader}
 import ConfigurationModule._
+import cats.data.OptionT
+import monix.eval.{Coeval, Task}
 import tshy0931.com.github.weichain.message.MerkleBlock
+import tshy0931.com.github.weichain.database.Database._
+import monix.execution.atomic._
+import shapeless.the
+import tshy0931.com.github.weichain.database.Database
 
 import scala.collection.JavaConverters._
 
@@ -17,49 +24,60 @@ object BlockChainModule {
   val genesisPrevHash = "0000000000000000000000000000000000000000000000000000000000000000".getBytes("UTF-8")
   val genesisNonce = 2083236893
 
-  lazy val genesisBlock = Block(
-    header = BlockHeader(
-      hash = genesisHash,
-      version = 1,
-      prevHeaderHash = genesisPrevHash,
-      merkleRoot = genesisMerkleRoot,
-      time = 1521820483592L,
-      nBits = 486604799,
-      nonce = genesisNonce
-    ),
-    body = BlockBody(
-      headerHash = genesisHash,
-      merkleTree = MerkleTree(Vector(genesisMerkleRoot), 1),
-      nTx = 1,
-      size = 100L,
-      transactions = Vector.empty[Transaction]
+  val genesisBlock: Coeval[Block] = Coeval.evalOnce(
+    Block(
+      header = BlockHeader(
+        hash = genesisHash,
+        version = 1,
+        prevHeaderHash = genesisPrevHash,
+        merkleRoot = genesisMerkleRoot,
+        time = 1521820483592L,
+        nBits = 486604799,
+        nonce = genesisNonce
+      ),
+      body = BlockBody(
+        headerHash = genesisHash,
+        merkleTree = MerkleTree(Vector(genesisMerkleRoot), 1),
+        nTx = 1,
+        size = 100L,
+        transactions = Vector.empty[Transaction]
+      )
     )
   )
 
-  var bestLocalHeaderChain: Vector[BlockHeader] = Vector(genesisBlock.header)
-  //TODO - Store only header chain in memory and persist blocks into disk storage
-  val bestLocalBlockChain: collection.concurrent.Map[String, Block] = new ConcurrentHashMap[String, Block]().asScala
-  def chainHeight: Long = bestLocalHeaderChain.size
+  val bestLocalHeaderChain: Coeval[Atomic[Vector[BlockHeader]]] =
+    genesisBlock map { blk => Atomic(Vector(blk.header)) } memoizeOnSuccess
 
-  val memPool: collection.concurrent.Map[String, Transaction] = new ConcurrentHashMap[String, Transaction]().asScala
+  def getBestLocalHeaderChain: Atomic[Vector[BlockHeader]] = bestLocalHeaderChain.value
 
-  var blocksSynced: Boolean = false
-  var headersSynced: Boolean = false
+  def chainHeight: Long = getBestLocalHeaderChain.get.size
 
-  def latestBlock: Block = bestLocalBlockChain(bestLocalHeaderChain.last.hash.asString)
-  def blockAt(index: Int): Block = bestLocalBlockChain(bestLocalHeaderChain(index).hash.asString)
-  def blockWithHash(hash: String): Option[Block] = bestLocalBlockChain.get(hash)
+  val memPool: Coeval[collection.concurrent.Map[String, Transaction]] = Coeval.evalOnce(
+    new ConcurrentHashMap[String, Transaction]().asScala
+  )
 
-  def merkleBlockOf(blockHash: String, txHash: String): Option[MerkleBlock] = {
+  var blocksSynced: Atomic[Boolean] = Atomic(false)
+  var headersSynced: Atomic[Boolean] = Atomic(false)
+
+  def latestBlock: Task[Block] = blockWithHash(getBestLocalHeaderChain.get.last.hash.asString) getOrElse genesisBlock.value
+
+  def blockWithHash(hash: String): OptionT[Task, Block] = OptionT(
+    (the[Database[BlockHeader]].find(hash), the[Database[BlockBody]].find(hash)) parMapN {
+      case (Some(header), Some(body)) => Block(header, body).some
+      case _ => None
+    })
+
+  def merkleBlockOf(blockHash: String, txHash: String): OptionT[Task, MerkleBlock] = {
     for {
       block       <- blockWithHash(blockHash)
       merkleBlock <- block.body.merkleTree.deriveMerkleBlockFor(txHash)(block.header, block.body.nTx)
     } yield merkleBlock
   }
 
-  def getBlocksByHashes(hashes: Vector[Hash]): Vector[Option[Block]] = {
-    hashes map { hash => bestLocalBlockChain.get(hash.asString) }
-  }
+//  def getBlocksByHashes(hashes: Vector[Hash]): Task[Vector[Option[Block]]] =
+//    Task.eval {
+//      hashes map { hash => blockWithHash(hash.asString) }
+//    }
 
   /**
     * Search best local header chain to locate the earliest header in the given headers.
@@ -69,22 +87,22 @@ object BlockChainModule {
     * @param count - number of headers following the given headers to return
     * @return - headers following the given headers on local best header chain.
     */
-  def searchHeadersAfter(headers: Vector[BlockHeader], count: Int = maxHeadersPerRequest): (Int, Vector[BlockHeader]) = {
+  def searchHeadersAfter(headers: Vector[BlockHeader], count: Int = maxHeadersPerRequest): Task[(Int, Vector[BlockHeader])] =
+    Task.eval {
+      var forkIndex: Int = 0
+      val peerChain: Iterator[BlockHeader] = headers.iterator
+      val peerChainHead: BlockHeader = peerChain.next
+      val matchingChain: Vector[BlockHeader] = getBestLocalHeaderChain.get.dropWhile( header => header.hash.asString != peerChainHead.hash.asString )
 
-    var forkIndex: Int = 0
-    val peerChain: Iterator[BlockHeader] = headers.iterator
-    val peerChainHead: BlockHeader = peerChain.next
-    val matchingChain: Vector[BlockHeader] = bestLocalHeaderChain.dropWhile( header => header.hash.asString != peerChainHead.hash.asString )
+      if(matchingChain.isEmpty) {
+        (forkIndex, getBestLocalHeaderChain.get take count)
+      } else {
+        val followingChain: Vector[BlockHeader] = (matchingChain drop 1) dropWhile { header =>
+          forkIndex += 1
+          peerChain.hasNext && header.hash.asString == peerChain.next.hash.asString
+        } take count
 
-    if(matchingChain.isEmpty) {
-      (forkIndex, bestLocalHeaderChain take count)
-    } else {
-      val followingChain: Vector[BlockHeader] = (matchingChain drop 1) dropWhile { header =>
-        forkIndex += 1
-        peerChain.hasNext && header.hash.asString == peerChain.next.hash.asString
-      } take count
-
-      (forkIndex, followingChain)
+        (forkIndex, followingChain)
+      }
     }
-  }
 }

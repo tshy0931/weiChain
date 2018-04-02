@@ -1,9 +1,11 @@
 package tshy0931.com.github.weichain.model
 
+import cats.data.OptionT
 import tshy0931.com.github.weichain._
 import tshy0931.com.github.weichain.message.MerkleBlock
 import tshy0931.com.github.weichain.model.Block.BlockHeader
 import cats.syntax.option._
+import monix.eval.{Coeval, Task}
 import tshy0931.com.github.weichain.module.DigestModule._
 
 case class MerkleTree(hashes: Vector[Hash], nTx: Int) {
@@ -14,6 +16,8 @@ case class MerkleTree(hashes: Vector[Hash], nTx: Int) {
 }
 
 object MerkleTree {
+
+  val empty: Coeval[MerkleTree] = Coeval.evalOnce(MerkleTree(Vector.empty, 0))
 
   def build(documents: Vector[String]): MerkleTree = {
 
@@ -48,22 +52,23 @@ object MerkleTree {
     def size:Int = tree.hashes.length
     def hashAt(index: Int): Hash = tree.hashes(index)
 
-    def derivePath(targetTx: String): Option[List[Int]] = {
-      tree.lookup.get(targetTx) map { index =>
-        var curr = index
-        var path = List(index)
-        while(curr > 0){
-          curr = parent(curr).get
-          path = curr :: path
+    def derivePath(targetTx: String): OptionT[Task, List[Int]] =
+      OptionT(
+        Task.eval {
+          tree.lookup.get(targetTx) map { index =>
+            var curr = index
+            var path = List(index)
+            while(curr > 0){
+              curr = parent(curr).get
+              path = curr :: path
+            }
+            path
+          }
         }
-        path
-      }
-    }
+      )
 
-    def deriveMerkleBlockFor(targetTxHash: String)(blockHeader: BlockHeader, nTx: Long): Option[MerkleBlock] = {
-
+    def deriveMerkleBlockFor(targetTxHash: String)(blockHeader: BlockHeader, nTx: Long): OptionT[Task, MerkleBlock] =
       derivePath(targetTxHash) map { path =>
-
         var stack: List[Int] = List(0)
         var currentIndex: Int = 0
         var currentFlag: Int = -1
@@ -71,19 +76,19 @@ object MerkleTree {
         var flags: Vector[Int] = Vector.empty[Int]
         var hashes: Vector[Hash] = Vector.empty[Hash]
 
-        while(stack.nonEmpty) {
+        while (stack.nonEmpty) {
           currentIndex = stack.head
           stack = stack.tail
-          currentFlag = if(remainingPath.nonEmpty && currentIndex == remainingPath.head) 1 else 0
+          currentFlag = if (remainingPath.nonEmpty && currentIndex == remainingPath.head) 1 else 0
 
-          if(isLeaf(currentIndex) || currentFlag == 0) {
+          if (isLeaf(currentIndex) || currentFlag == 0) {
             hashes = hashes :+ hashAt(currentIndex)
           }
 
-          if(currentFlag == 1){
+          if (currentFlag == 1) {
 
-            right(currentIndex) foreach {right => stack = right :: stack}
-            left(currentIndex) foreach {left => stack = left :: stack}
+            right(currentIndex) foreach { right => stack = right :: stack }
+            left(currentIndex) foreach { left => stack = left :: stack }
             remainingPath = remainingPath.tail
           }
           flags = flags :+ currentFlag
@@ -91,13 +96,13 @@ object MerkleTree {
 
         MerkleBlock(blockHeader, nTx, hashes, flags)
       }
-    }
 
-    def parseMerkleBlock(merkleBlock: MerkleBlock): Option[(Hash, Int)] = {
-      // TODO - Support invalid cases like transaction not found and root hash not matching
-      val (rootHash, location, _, _) = parseFlagsAndHashes(0, merkleBlock.flags, merkleBlock.hashes)
-      location map { l => (rootHash, l - (size - tree.nTx)) }
-    }
+    def parseMerkleBlock(merkleBlock: MerkleBlock): OptionT[Task, (Hash, Int)] =
+      OptionT( Task.eval {
+        // TODO - Support invalid cases like transaction not found and root hash not matching
+        val (rootHash, location, _, _) = parseFlagsAndHashes(0, merkleBlock.flags, merkleBlock.hashes)
+        location map { l => (rootHash, l - (size - tree.nTx)) }
+      })
 
     private def parseFlagsAndHashes(index: Int, flags: Vector[Int], hashes: Vector[Hash]): (Hash, Option[Int], Vector[Int], Vector[Hash]) = {
 

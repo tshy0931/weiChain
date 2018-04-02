@@ -62,4 +62,5 @@ message BlockBodyProto {
 
 message MerkleTreeProto {
     repeated bytes hashes = 1;
+    int32 nTx = 2;
 }
