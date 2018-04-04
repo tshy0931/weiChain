@@ -11,8 +11,6 @@ import cats.data.{OptionT, Validated}
 import cats.data.Validated.{Invalid, Valid}
 import monix.eval.Task
 
-import scala.concurrent.Future
-
 object ValidationModule {
 
   type Validation[A] = A => Task[Validated[ValidationError[A], A]]
@@ -35,7 +33,7 @@ object ValidationModule {
       * And the hash value should suffice the difficulty at block creation time.
       */
     def isValidHash: Validation[BlockHeader] = header => Task {
-      val hashString = header.computeHash.asString
+      val hashString = header.computeNoncedHash.asString
       if (hashString == header.hash.asString && isValidProofOfWork(hashString)) header.valid
       else ValidationError("invalid header hash", header).invalid
     }
@@ -45,7 +43,7 @@ object ValidationModule {
       */
     def isValidLink(prevHeader: BlockHeader, currHeader: BlockHeader): Task[Validated[ValidationError[BlockHeader], BlockHeader]] =
       Task.eval {
-        if(prevHeader.computeHash.asString == currHeader.prevHeaderHash.asString) currHeader.valid
+        if(prevHeader.computeNoncedHash.asString == currHeader.prevHeaderHash.asString) currHeader.valid
         else ValidationError("prevBlockHash doesn't match with previous block", currHeader).invalid
       }
 

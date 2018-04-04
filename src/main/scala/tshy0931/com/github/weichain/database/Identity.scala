@@ -1,5 +1,6 @@
 package tshy0931.com.github.weichain.database
 
+import shapeless.the
 import tshy0931.com.github.weichain._
 import tshy0931.com.github.weichain.model.Block.{BlockBody, BlockHeader}
 import tshy0931.com.github.weichain.model.Transaction
@@ -26,6 +27,8 @@ object Identity {
   }
 
   import Keyspace._
+
+  def apply[A: Identity] = the[Identity[A]]
 
   implicit val blockHeaderId: Identity[BlockHeader] = instance(blk => s"$BLOCK_HEADER:${blk.hash.asString}")
   implicit val blockBodyId: Identity[BlockBody] = instance(blk => s"$BLOCK_BODY:${blk.headerHash.asString}")

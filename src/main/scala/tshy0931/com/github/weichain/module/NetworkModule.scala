@@ -8,10 +8,10 @@ import akka.event.Logging
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.Http.ServerBinding
 import akka.http.scaladsl.model.StatusCodes._
-import akka.http.scaladsl.model.{HttpResponse, RemoteAddress, ResponseEntity, StatusCodes}
+import akka.http.scaladsl.model.RemoteAddress
 import akka.stream.ActorMaterializer
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.{Route, StandardRoute}
+import akka.http.scaladsl.server.Route
 import tshy0931.com.github.weichain._
 import DigestModule._
 import BlockChainModule._
@@ -21,13 +21,12 @@ import tshy0931.com.github.weichain.message._
 import tshy0931.com.github.weichain.model.Block.BlockHeader
 import tshy0931.com.github.weichain.network.{Address, PeerProperty}
 import ConfigurationModule._
-import akka.http.scaladsl.marshalling.Marshal
 import akka.pattern.CircuitBreaker
-import cats.data.OptionT
 import cats.data.Validated.{Invalid, Valid}
 import monix.eval.Task
 import monix.execution.CancelableFuture
 import tshy0931.com.github.weichain.codec.CodecModule._
+import tshy0931.com.github.weichain.database.MemPool
 import tshy0931.com.github.weichain.model.{Block, Transaction}
 
 import scala.concurrent.Future
@@ -39,7 +38,6 @@ import scala.concurrent.duration._
 object NetworkModule {
 
   import Routes._
-  import tshy0931.com.github.weichain.network.Protocol
   import tshy0931.com.github.weichain.network.Protocol.Endpoints._
 
   implicit val system = ActorSystem()
@@ -74,7 +72,7 @@ object NetworkModule {
     networkBinding.unbind()
   }
 
-  final case object Routes {
+  final object Routes {
 
     lazy val dataRoute: Route = {
       path( DOMAIN_DATA / BLOCK / REGEX_HASH / PathEnd ) { blockHash =>
@@ -112,7 +110,7 @@ object NetworkModule {
                   complete(BadRequest -> "No block header specified in request.")
                 } else {
                   val task: Task[(Int, Vector[BlockHeader])] = searchHeadersAfter(blockHeaders, count.getOrElse(maxHeadersPerRequest))
-                  onCompleteWithBreaker(circuitBreaker)(task.runAsync){
+                  onCompleteWithBreaker(circuitBreaker)(task.runAsync) {
                     case Success((forkIndex, headers)) => complete(Headers(headers.size, forkIndex, headers))
                     case Failure(err)                  => complete(InternalServerError -> err)
                   }
@@ -130,17 +128,18 @@ object NetworkModule {
       //          ???
       //        }
       //    } ~
-      //    path( DOMAIN_DATA / "mempool") {
-      //      get {
-      //        ???
-      //      } ~
-      //        post {
-      //          ???
-      //        }
-      //    } ~
+      path( DOMAIN_DATA / "mempool") {
+        get {
+          val txInMemPool: Task[Seq[Transaction]] = MemPool[Transaction].getAll
+          onCompleteWithBreaker(circuitBreaker)(txInMemPool.runAsync) {
+            case Success(txs) => complete(MemPoolMsg(txs.size, txs))
+            case Failure(err) => complete(InternalServerError -> err)
+          }
+        }
+      } ~
       path( DOMAIN_DATA / BLOCK / REGEX_HASH / REGEX_HASH / MERKLEBLOCK / PathEnd ) { (blockHash, txHash) =>
         get {
-          val task = merkleBlockOf(blockHash, txHash).value
+          val task: Task[Option[MerkleBlock]] = merkleBlockOf(blockHash, txHash).value
           onCompleteWithBreaker(circuitBreaker)(task.runAsync) {
             case Success(Some(merkleBlock)) => complete(OK -> merkleBlock)
             case Success(None)              => complete(NotFound -> s"merkle block not found for block $blockHash tx $txHash")
@@ -153,7 +152,9 @@ object NetworkModule {
           decodeRequest {
             entity(as[Transaction]) { tx =>
               onCompleteWithBreaker(circuitBreaker)(verifyTx(tx).runAsync) {
-                case Success(Valid(_))     => complete(OK -> s"transaction ${tx.hash} is validated and received.")
+                case Success(Valid(tx))    =>
+                  MemPool[Transaction].put(tx, tx.createTime)
+                  complete(OK -> s"transaction ${tx.hash} is validated and received.")
                 case Success(Invalid(err)) => complete(BadRequest -> err)
                 case Failure(err)          => complete(InternalServerError -> err)
               }

@@ -1,5 +1,7 @@
 package tshy0931.com.github.weichain.model
 
+import monocle.{Lens, PLens}
+import monocle.macros.GenLens
 import tshy0931.com.github.weichain.Hash
 import tshy0931.com.github.weichain.model.Block.{BlockBody, BlockHeader}
 import tshy0931.com.github.weichain.module.DigestModule._
@@ -48,7 +50,25 @@ object Block {
                        size: Long,
                        transactions: Vector[Transaction])
 
+  val headerLens: Lens[Block, BlockHeader] = GenLens[Block](_.header)
+  val nonceLens: Lens[BlockHeader, Long] = GenLens[BlockHeader](_.nonce)
+  val headerHashLens: Lens[BlockHeader, Hash] = GenLens[BlockHeader](_.hash)
+  val blockHashLens: Lens[Block, Hash] = headerLens composeLens headerHashLens
+  val blockNonceLens: Lens[Block, Long] = headerLens composeLens nonceLens
+
   implicit class BlockHeaderOps(header: BlockHeader) {
+
+    def computeNoncedHash: Hash = {
+      digest(
+        s"""${header.version}
+           |${header.prevHeaderHash}
+           |${header.merkleRoot}
+           |${header.time}
+           |${header.nBits}
+           |${header.nonce}
+        """.stripMargin
+      )
+    }
 
     def computeHash: Hash = {
       digest(
@@ -57,7 +77,6 @@ object Block {
            |${header.merkleRoot}
            |${header.time}
            |${header.nBits}
-           |${header.nonce}
         """.stripMargin
       )
     }

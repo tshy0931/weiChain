@@ -81,7 +81,7 @@ class P2PClient extends Actor with ActorLogging {
           // overwrite forked headers
           if (forkIndex < headers.size) {
             headers.takeRight(headers.size - forkIndex) map {
-              the[Database[BlockHeader]].save
+              Database[BlockHeader].save
             }
           }
         } runOnComplete {

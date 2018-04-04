@@ -15,7 +15,7 @@ object CodecModule extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val coinbaseFormat = jsonFormat1(Coinbase)
   implicit val txOutputFormat = jsonFormat7(Output)
   implicit val txInputFormat = jsonFormat5(Input)
-  implicit val transactionFormat = jsonFormat9(Transaction.apply)
+  implicit val transactionFormat = jsonFormat10(Transaction.apply)
   implicit val blockHeaderFormat = jsonFormat7(BlockHeader)
   implicit val merkleTreeFormat = jsonFormat2(MerkleTree.apply)
   implicit val blockBodyFormat = jsonFormat5(BlockBody)
@@ -30,5 +30,6 @@ object CodecModule extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val txValidationErrorFormat = jsonFormat2(ValidationError[Transaction])
   implicit val blkHeaderValidationErrorFormat = jsonFormat2(ValidationError[BlockHeader])
   implicit val blkBodyValidationErrorFormat = jsonFormat2(ValidationError[BlockBody])
+  implicit val memPoolFormat = jsonFormat2(MemPoolMsg)
 
 }

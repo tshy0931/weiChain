@@ -16,6 +16,7 @@ import shapeless.the
 import tshy0931.com.github.weichain.database.Database
 
 import scala.collection.JavaConverters._
+import scala.collection.concurrent
 
 object BlockChainModule {
 
@@ -52,17 +53,13 @@ object BlockChainModule {
 
   def chainHeight: Long = getBestLocalHeaderChain.get.size
 
-  val memPool: Coeval[collection.concurrent.Map[String, Transaction]] = Coeval.evalOnce(
-    new ConcurrentHashMap[String, Transaction]().asScala
-  )
-
   var blocksSynced: Atomic[Boolean] = Atomic(false)
   var headersSynced: Atomic[Boolean] = Atomic(false)
 
   def latestBlock: Task[Block] = blockWithHash(getBestLocalHeaderChain.get.last.hash.asString) getOrElse genesisBlock.value
 
   def blockWithHash(hash: String): OptionT[Task, Block] = OptionT(
-    (the[Database[BlockHeader]].find(hash), the[Database[BlockBody]].find(hash)) parMapN {
+    (Database[BlockHeader].find(hash), Database[BlockBody].find(hash)) parMapN {
       case (Some(header), Some(body)) => Block(header, body).some
       case _ => None
     })

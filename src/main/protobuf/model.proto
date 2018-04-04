@@ -40,6 +40,7 @@ message TransactionProto {
     int32 lockTime = 7;
     int64 blockIndex = 8;
     double txFee = 9;
+    int64 createTime = 10;
 }
 
 message BlockHeaderProto {

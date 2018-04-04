@@ -38,6 +38,8 @@ object FilterModule {
     }
   }
 
+  def apply[A: FilterPool] = the[FilterPool[A]]
+
   implicit val txFilterPool: FilterPool[Transaction] = FilterPool[Transaction]
   implicit val addrFilterPool: FilterPool[Address] = FilterPool[Address]
 
@@ -61,12 +63,12 @@ object FilterModule {
                   falsePositiveRate: Double = 0.03): BloomFilter[Transaction] = {
 
     val filter = BloomFilter.create[Transaction](txFunnel, expectedInsertions, falsePositiveRate)
-    the[FilterPool[Transaction]].add(owner, filter)
+    FilterPool[Transaction].add(owner, filter)
     filter
   }
 
   def getTxFilter(owner: String): Option[BloomFilter[Transaction]] = {
-    the[FilterPool[Transaction]].get(owner)
+    FilterPool[Transaction].get(owner)
   }
 
   def addToFilter(message: FilterAdd): HttpResponse = message match {
@@ -97,7 +99,7 @@ object FilterModule {
     }
 
   def deleteTxFilter(owner: String): HttpResponse = {
-    val ok: Boolean = the[FilterPool[Transaction]].delete(owner)
+    val ok: Boolean = FilterPool[Transaction].delete(owner)
     if(ok) HttpResponse(200, entity = s"filter deleted for $owner")
     else HttpResponse(500, entity = s"failed to delete filter for $owner")
   }

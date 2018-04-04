@@ -59,3 +59,6 @@ case class FilterLoad(owner: String,
 
 case class FilterAdd(owner: String,
                      inserts: Vector[Transaction])
+
+case class MemPoolMsg(size: Int,
+                      transactions: Iterable[Transaction])

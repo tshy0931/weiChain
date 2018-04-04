@@ -45,7 +45,8 @@ case class Transaction(hash: Hash,
                        txOut: Vector[Output],
                        lockTime: Int,
                        blockIndex: Long,
-                       txFee: Double)
+                       txFee: Double,
+                       createTime: Long)
 
 object Transaction {
 

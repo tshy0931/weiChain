@@ -8,6 +8,7 @@ import tshy0931.com.github.weichain.model.{MerkleTree, Transaction}
 import tshy0931.com.github.weichain.model.Transaction.{Coinbase, Input, Output}
 import tshy0931.com.github.weichain.model.proto.model._
 import monocle.Iso
+import shapeless.the
 
 trait Protobufable[A] {
 
@@ -26,28 +27,32 @@ object Protobufable {
     override def fromProtobuf: Array[Byte] => A = from
   }
 
+  def apply[A: Protobufable]: Protobufable[A] = the[Protobufable[A]]
+
   val txIso = Iso[TransactionProto, Transaction]
   { proto => Transaction(
-      hash = proto.hash,
-      version = proto.version,
-      nTxIn = proto.nTxIn,
-      txIn = proto.txIn map inputIso.get toVector,
-      nTxOut = proto.nTxOut,
-      txOut = proto.txOut map outputIso.get toVector,
-      lockTime = proto.lockTime,
-      blockIndex = proto.blockIndex,
-      txFee = proto.txFee
+    hash = proto.hash,
+    version = proto.version,
+    nTxIn = proto.nTxIn,
+    txIn = proto.txIn map inputIso.get toVector,
+    nTxOut = proto.nTxOut,
+    txOut = proto.txOut map outputIso.get toVector,
+    lockTime = proto.lockTime,
+    blockIndex = proto.blockIndex,
+    txFee = proto.txFee,
+    createTime = proto.createTime
   )}
   { tx => TransactionProto(
-      hash = tx.hash,
-      version = tx.version,
-      nTxIn = tx.nTxIn,
-      txIn = tx.txIn map inputIso.reverseGet,
-      nTxOut = tx.nTxOut,
-      txOut = tx.txOut map outputIso.reverseGet,
-      lockTime = tx.lockTime,
-      blockIndex = tx.blockIndex,
-      txFee = tx.txFee
+    hash = tx.hash,
+    version = tx.version,
+    nTxIn = tx.nTxIn,
+    txIn = tx.txIn map inputIso.reverseGet,
+    nTxOut = tx.nTxOut,
+    txOut = tx.txOut map outputIso.reverseGet,
+    lockTime = tx.lockTime,
+    blockIndex = tx.blockIndex,
+    txFee = tx.txFee,
+    createTime = tx.createTime
   )}
 
   val coinbaseIso = Iso[CoinbaseProto, Coinbase]
