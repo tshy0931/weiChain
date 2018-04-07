@@ -1,6 +1,6 @@
 package tshy0931.com.github.weichain.model
 
-import monocle.{Lens, PLens}
+import monocle.Lens
 import monocle.macros.GenLens
 import tshy0931.com.github.weichain.Hash
 import tshy0931.com.github.weichain.model.Block.{BlockBody, BlockHeader}

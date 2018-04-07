@@ -13,6 +13,7 @@ object Protocol {
   final case class EndpointResponse(endpoint: String, peer: Address, response: HttpResponse) extends ResponseEnvelope
   final case class HeadersResponse(headersSentInRequest: Vector[BlockHeader], response: HttpResponse) extends ResponseEnvelope
   final case class TxResponse(peer: Address, response: HttpResponse) extends ResponseEnvelope
+  final case class BroadcastResponse[A](item: A, peer: Address, response: HttpResponse) extends ResponseEnvelope
 
   object Endpoints {
 

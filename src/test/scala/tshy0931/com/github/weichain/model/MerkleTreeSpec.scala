@@ -1,12 +1,16 @@
 package tshy0931.com.github.weichain.model
 
+import monix.eval.Task
 import tshy0931.com.github.weichain._
-import org.scalatest._
+import org.scalatest.{path, _}
 import org.scalatest.prop.TableDrivenPropertyChecks
 import tshy0931.com.github.weichain._
 import tshy0931.com.github.weichain.message.MerkleBlock
 import tshy0931.com.github.weichain.model.Block.BlockHeader
 import tshy0931.com.github.weichain.module.DigestModule._
+import monix.execution.Scheduler.Implicits.global
+
+import scala.util.{Failure, Success}
 
 class MerkleTreeSpec extends FlatSpec with GivenWhenThen with Matchers with Inside with MerkleTreeFixture {
 
@@ -49,8 +53,11 @@ class MerkleTreeSpec extends FlatSpec with GivenWhenThen with Matchers with Insi
 
     forAll(testPaths) { (index, expectedPath) =>
       val target: String = testTransactions(index)
-      val path: Option[List[Int]] = testMerkleTree.derivePath(digest(target).asString)
-      path should contain(expectedPath)
+      val task: Task[Option[List[Int]]] = testMerkleTree.derivePath(digest(target).asString).value
+      task runOnComplete {
+        case Success(path) => path should contain(expectedPath)
+        case Failure(err)  => fail(err)
+      }
     }
   }
 
@@ -63,12 +70,18 @@ class MerkleTreeSpec extends FlatSpec with GivenWhenThen with Matchers with Insi
 
     forAll(testFlagsAndHashes) { (txId, flags, hashIndices) =>
 
-      val result: Option[MerkleBlock] = testMerkleTree.deriveMerkleBlockFor(digestor.digest(testTransactions(txId).getBytes("UTF-8")))(testBlockHeader, 0L)
+      val result: Task[Option[MerkleBlock]] =
+        testMerkleTree.deriveMerkleBlockFor(digest(testTransactions(txId)).asString)(testBlockHeader, 0L).value
 
       val hashes: Vector[String] = hashIndices map testMerkleTree.hashAt map (_.asString)
-      inside(result) { case Some(MerkleBlock(_, _, hs, fs)) =>
-        fs shouldBe flags
-        (hs map {_.asString}) shouldBe hashes
+
+      result runOnComplete {
+        case Success(merkleBlock) => inside(merkleBlock) {
+          case Some(MerkleBlock(_, _, hs, fs)) =>
+            fs shouldBe flags
+            (hs map {_.asString}) shouldBe hashes
+          }
+        case Failure(err)  => fail(err)
       }
     }
   }
@@ -77,12 +90,16 @@ class MerkleTreeSpec extends FlatSpec with GivenWhenThen with Matchers with Insi
 
     forAll(testFlagsAndHashes) { (txIndex, flags, hashIndices) =>
 
-      val result: Option[(Hash, Int)] = testMerkleTree.parseMerkleBlock(MerkleBlock(testBlockHeader, 0L, hashIndices map testMerkleTree.hashAt, flags))
+      val result: Task[Option[(Hash, Int)]] =
+        testMerkleTree.parseMerkleBlock(MerkleBlock(testBlockHeader, 0L, hashIndices map testMerkleTree.hashAt, flags)).value
 
-      inside(result) { case Some((rootHash, location)) =>
-        rootHash shouldBe testMerkleTree.hashAt(0)
-        //TODO - convert index in merkle tree back to index in transaction list
-        location shouldBe txIndex
+      result runOnComplete {
+        case Success(result) => inside(result) { case Some((rootHash, location)) =>
+          rootHash shouldBe testMerkleTree.hashAt(0)
+          //TODO - convert index in merkle tree back to index in transaction list
+          location shouldBe txIndex
+        }
+        case Failure(err)  => fail(err)
       }
     }
   }

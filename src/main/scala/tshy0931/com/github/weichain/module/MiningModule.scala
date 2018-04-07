@@ -1,7 +1,6 @@
 package tshy0931.com.github.weichain.module
 
 import tshy0931.com.github.weichain._
-import BlockChainModule._
 import DigestModule._
 import tshy0931.com.github.weichain.model.Block._
 import monix.eval.Task
@@ -30,12 +29,12 @@ object MiningModule {
 
   /**
   Select a set of preferable transactions to include in the block to create. Rules are:
-    1. prefer higher tx fees
+    1. prefer higher tx fees - TODO
     2. prefer earlier created
    */
   private def selectTransactions: Task[Seq[Transaction]] = {
+    // TODO prefer higher tx fees
     MemPool[Transaction].getEarliest(2000)
-
   }
 
   private def proofOfWork(blockHeader: BlockHeader, difficulty: String): Task[(Int, Hash)] = Task {

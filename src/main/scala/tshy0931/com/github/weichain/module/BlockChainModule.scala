@@ -1,7 +1,5 @@
 package tshy0931.com.github.weichain.module
 
-import java.util.concurrent.ConcurrentHashMap
-
 import cats.syntax.all._
 import tshy0931.com.github.weichain._
 import tshy0931.com.github.weichain.model.{Block, MerkleTree, Transaction}
@@ -12,11 +10,7 @@ import monix.eval.{Coeval, Task}
 import tshy0931.com.github.weichain.message.MerkleBlock
 import tshy0931.com.github.weichain.database.Database._
 import monix.execution.atomic._
-import shapeless.the
 import tshy0931.com.github.weichain.database.Database
-
-import scala.collection.JavaConverters._
-import scala.collection.concurrent
 
 object BlockChainModule {
 
@@ -89,7 +83,8 @@ object BlockChainModule {
       var forkIndex: Int = 0
       val peerChain: Iterator[BlockHeader] = headers.iterator
       val peerChainHead: BlockHeader = peerChain.next
-      val matchingChain: Vector[BlockHeader] = getBestLocalHeaderChain.get.dropWhile( header => header.hash.asString != peerChainHead.hash.asString )
+      val matchingChain: Vector[BlockHeader] =
+        getBestLocalHeaderChain.get.dropWhile( header => header.hash.asString != peerChainHead.hash.asString )
 
       if(matchingChain.isEmpty) {
         (forkIndex, getBestLocalHeaderChain.get take count)

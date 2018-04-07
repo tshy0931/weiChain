@@ -1,5 +1,6 @@
 package tshy0931.com.github.weichain.module
 
+import cats.data.Validated.Invalid
 import cats.syntax.validated._
 import org.scalatest.{FlatSpec, GivenWhenThen, Inside, Matchers}
 import tshy0931.com.github.weichain.model.Script._
@@ -19,9 +20,9 @@ class ScriptModuleSpec extends FlatSpec with GivenWhenThen with Matchers with In
   it should "fail to handle an invalid P2PKH script validation" in {
     //TODO: implement test when signature module is implemented
     ScriptModule.run(P2PKH.sig(secretKey, publicKey)) shouldBe s"$publicKey added".valid
-//    inside(run(P2PKH.pubKey(publicKey))) { case Invalid(Error(_, cmd, _)) =>
-//      cmd shouldBe "OP_EQUALVERIFY"
-//    }
+    inside(ScriptModule.run(P2PKH.pubKey(publicKey))) { case Invalid(Error(_, cmd, _)) =>
+      cmd shouldBe "OP_EQUALVERIFY"
+    }
   }
 
   behavior of "P2SH scripts"

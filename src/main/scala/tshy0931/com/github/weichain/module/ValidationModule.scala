@@ -1,13 +1,12 @@
 package tshy0931.com.github.weichain.module
 
 import cats.syntax.all._
-import tshy0931.com.github.weichain.model.{Block, Transaction}
+import tshy0931.com.github.weichain.model.{MerkleTree, Transaction}
 import tshy0931.com.github.weichain._
 import BlockChainModule._
-import tshy0931.com.github.weichain.model.Block.BlockHeader
-import DigestModule._
+import tshy0931.com.github.weichain.model.Block.{BlockBody, BlockHeader}
 import MiningModule.difficulty
-import cats.data.{OptionT, Validated}
+import cats.data.Validated
 import cats.data.Validated.{Invalid, Valid}
 import monix.eval.Task
 
@@ -21,7 +20,7 @@ object ValidationModule {
 
     type BlockHeaderValidation = (BlockHeader, BlockHeader) => Task[Validated[ValidationError[BlockHeader], BlockHeader]]
 
-    def verifyHeaders: BlockHeaderValidation = (prevHeader, currHeader) =>
+    def verifyBlockHeaders: BlockHeaderValidation = (prevHeader, currHeader) =>
       (isValidHash(currHeader), isValidLink(prevHeader, currHeader)) mapN {
         case (Valid(header), Valid(_)) => header.valid
         case (Invalid(err1), _) => err1.invalid
@@ -48,6 +47,47 @@ object ValidationModule {
       }
 
     def isValidProofOfWork: String => Boolean = _.startsWith(difficulty)
+  }
+
+  final case object BlockBodyValidation {
+
+    import TransactionValidation._
+
+    type BlockBodyValidation = BlockBody => Task[Validated[ValidationError[BlockBody], BlockBody]]
+
+    def verifyBlockBody: BlockBodyValidation = body =>
+      (hasValidTx(body), hasValidMerkleRoot(body), hasValidSize(body)) parMapN {
+        case (Valid(_), Valid(_), Valid(_)) => body.valid
+        case (err @ Invalid(_), _, _) => err
+        case (_, err @ Invalid(_), _) => err
+        case (_, _, err @ Invalid(_)) => err
+      }
+
+    def hasValidTx: BlockBodyValidation = body => Task.defer {
+      Task gatherUnordered { body.transactions map { verifyTx } } map { list =>
+      // TODO: any chance to use EitherT here?
+//        val eitherList: List[Either[ValidationError[Transaction], Transaction]] = list map { _.toEither }
+//        val et = EitherT(eitherList)
+      if(list collect { case Invalid(err) => err } nonEmpty){
+        ValidationError[BlockBody]("Block body contains invalid tx", body).invalid
+      } else {
+        body.valid
+      }}
+    }
+
+    def hasValidMerkleRoot: BlockBodyValidation = body => Task {
+      val merkleTree = MerkleTree.build(body.transactions map {_.hash.asString})
+      if(merkleTree.root.asString == body.merkleTree.root.asString) {
+        body.valid
+      } else {
+        ValidationError[BlockBody]("invalid merkle root", body).invalid
+      }
+    }
+
+    def hasValidSize: BlockBodyValidation = body => Task {
+      if(body.nTx == body.transactions.size) body.valid
+      else ValidationError("nTx is not equal to actual number of tx", body).invalid
+    }
   }
 
   final case object TransactionValidation {

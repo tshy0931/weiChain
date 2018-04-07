@@ -65,3 +65,8 @@ message MerkleTreeProto {
     repeated bytes hashes = 1;
     int32 nTx = 2;
 }
+
+message AddressProto {
+    string host = 1;
+    int32 port = 2;
+}

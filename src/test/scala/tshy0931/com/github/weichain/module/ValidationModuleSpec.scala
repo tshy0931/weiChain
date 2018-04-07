@@ -14,21 +14,21 @@ import tshy0931.com.github.weichain.Hash
 
 class ValidationModuleSpec extends FlatSpec with GivenWhenThen with BeforeAndAfterAll with Matchers with MockitoSugar with Inside with ValidationModuleFixture {
 
-  override def beforeAll(): Unit = {
-    bestLocalBlockChain.putIfAbsent("1", testBlock)
-    super.beforeAll()
-  }
-
-  override def afterAll(): Unit = {
-    bestLocalBlockChain.clear()
-    super.afterAll()
-  }
+//  override def beforeAll(): Unit = {
+//    bestLocalBlockChain.putIfAbsent("1", testBlock)
+//    super.beforeAll()
+//  }
+//
+//  override def afterAll(): Unit = {
+//    bestLocalBlockChain.clear()
+//    super.afterAll()
+//  }
 
   behavior of "Transaction validation"
 
   it should "validate a valid transaction" in {
 
-    TransactionValidation.verify(txValid) shouldBe txValid.valid
+    TransactionValidation.verifyTx(txValid) shouldBe txValid.valid
   }
 
   it should "invalidate a transaction that has output value greater than input value" in {
@@ -49,13 +49,14 @@ trait ValidationModuleFixture extends BlockChainModuleFixture {
   val testBlock = Block(
     header = BlockHeader(testHash, 1, testHash, testHash, 1L, 1L, 1L),
     body = BlockBody(
+      testHash,
       MerkleTree(Vector.empty[Hash], 0),
       3,
       3L,
       Vector(
-        Transaction(testHash, 1, 0, Vector.empty, 3, Vector(txOutput(1, 2.0), txOutput(2, 0.2)), 0, 1L, 0.0),
-        Transaction(testHash, 1, 0, Vector.empty, 3, Vector(txOutput(1, 2.0), txOutput(2, 2.0)), 0, 1L, 0.0),
-        Transaction(testHash, 1, 0, Vector.empty, 3, Vector(txOutput(1, 0.1), txOutput(2, 0.1)), 0, 1L, 0.0)
+        Transaction(testHash, 1, 0, Vector.empty, 3, Vector(txOutput(1, 2.0), txOutput(2, 0.2)), 0, 1L, 0.0, 0L),
+        Transaction(testHash, 1, 0, Vector.empty, 3, Vector(txOutput(1, 2.0), txOutput(2, 2.0)), 0, 1L, 0.0, 0L),
+        Transaction(testHash, 1, 0, Vector.empty, 3, Vector(txOutput(1, 0.1), txOutput(2, 0.1)), 0, 1L, 0.0, 0L)
       )
     )
   )
@@ -65,18 +66,19 @@ trait ValidationModuleFixture extends BlockChainModuleFixture {
     version = 1,
     nTxIn = 2,
     txIn = Vector(
-      txInput(1, 1.0, Output(1.2, 1.toString.getBytes("UTF-8"), 1.toString, 0, 0, "scriptPubKey 1")),
-      txInput(2, 2.0, Output(2.0, 1.toString.getBytes("UTF-8"), 1.toString, 1, 1, "scriptPubKey 2")),
+      txInput(1, 1.0, Output(1.2, 1.toString.getBytes("UTF-8"), 1.toString.getBytes("UTF-8"), 0, 0, "scriptPubKey 1")),
+      txInput(2, 2.0, Output(2.0, 1.toString.getBytes("UTF-8"), 1.toString.getBytes("UTF-8"), 1, 1, "scriptPubKey 2")),
     ),
     nTxOut = 3,
     txOut = Vector(
-      Output(1.0, 1.toString.getBytes("UTF-8"), 1.toString, 1, 1, "scriptPubKey 1"),
-      Output(1.0, 2.toString.getBytes("UTF-8"), 2.toString, 2, 2, "scriptPubKey 2"),
-      Output(1.0, 300.toString.getBytes("UTF-8"), 3.toString, 1, 1, "scriptPubKey 300")
+      Output(1.0, 1.toString.getBytes("UTF-8"), 1.toString.getBytes("UTF-8"), 1, 1, "scriptPubKey 1"),
+      Output(1.0, 2.toString.getBytes("UTF-8"), 2.toString.getBytes("UTF-8"), 2, 2, "scriptPubKey 2"),
+      Output(1.0, 300.toString.getBytes("UTF-8"), 3.toString.getBytes("UTF-8"), 1, 1, "scriptPubKey 300")
     ),
     lockTime = 1,
     blockIndex = 1L,
-    txFee = 0.1)
+    txFee = 0.1,
+    createTime = 0L)
 
   val txOutputGreaterThanInput = Transaction(
     hash = testHash,
@@ -94,7 +96,8 @@ trait ValidationModuleFixture extends BlockChainModuleFixture {
     ),
     lockTime = 1,
     blockIndex = 1L,
-    txFee = 0.1)
+    txFee = 0.1,
+    createTime = 0L)
 
   def txInput(number: Int, value: Double, source: Output) = Input(
     value = value,
@@ -106,7 +109,7 @@ trait ValidationModuleFixture extends BlockChainModuleFixture {
   def txOutput(number: Int, value: Double) = Output(
     value = value,
     address = number.toString.getBytes("UTF-8"),
-    blockHash = number.toString,
+    blockHash = number.toString.getBytes("UTF-8"),
     txIndex = number,
     outputIndex = number,
     scriptPubKey = s"scriptPubKey $number"
@@ -123,11 +126,12 @@ trait ValidationModuleFixture extends BlockChainModuleFixture {
     ),
     nTxOut = 3,
     txOut = Vector(
-      Output(1.0, 1.toString.getBytes("UTF-8"), 1.toString, 1, 1, "scriptPubKey 1"),
-      Output(2.0, 2.toString.getBytes("UTF-8"), 2.toString, 2, 2, "scriptPubKey 2"),
-      Output(2.0, 300.toString.getBytes("UTF-8"), 3.toString, 1, 1, "scriptPubKey 300")
+      Output(1.0, 1.toString.getBytes("UTF-8"), 1.toString.getBytes("UTF-8"), 1, 1, "scriptPubKey 1"),
+      Output(2.0, 2.toString.getBytes("UTF-8"), 2.toString.getBytes("UTF-8"), 2, 2, "scriptPubKey 2"),
+      Output(2.0, 300.toString.getBytes("UTF-8"), 3.toString.getBytes("UTF-8"), 1, 1, "scriptPubKey 300")
     ),
     lockTime = 1,
     blockIndex = 1L,
-    txFee = 0.1)
+    txFee = 0.1,
+    createTime = 0L)
 }

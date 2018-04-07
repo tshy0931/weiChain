@@ -7,9 +7,13 @@ package object weichain {
   val emptyHash: Hash = "".getBytes("UTF-8")
 
   /*** easter egg! ***/
-//  type WhatEver[A,B] = (A, B)
-//  def `¯\_(ツ)_/¯`(left: Int, right: Boolean): WhatEver[Int, Boolean] = (left, right)
+  type WhatEver[A,B] = (A, B)
+  def `¯|_(ツ)_|¯`(left: Int, right: Boolean): WhatEver[Int, Boolean] = (left, right)
 
+  implicit class WhatEverOps(a: Any) {
+
+    def `¯|_(ツ)_|¯`(b: Any): WhatEver[Any, Any] = (a, b)
+  }
 
   implicit class HashOps(hash: Hash) {
 

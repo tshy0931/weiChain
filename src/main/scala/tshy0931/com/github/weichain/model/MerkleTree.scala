@@ -50,6 +50,7 @@ object MerkleTree {
     private[model] def isLeaf(i: Int): Boolean = left(i).isEmpty
 
     def size:Int = tree.hashes.length
+    val root: Hash = tree.hashes.headOption getOrElse emptyHash
     def hashAt(index: Int): Hash = tree.hashes(index)
 
     def derivePath(targetTx: String): OptionT[Task, List[Int]] =

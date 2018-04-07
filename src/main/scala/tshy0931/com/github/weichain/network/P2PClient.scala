@@ -1,7 +1,7 @@
 package tshy0931.com.github.weichain.network
 
 import cats.syntax.validated._
-import akka.actor.{Actor, ActorLogging, ActorSystem}
+import akka.actor.{Actor, ActorLogging, ActorSystem, Props}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.unmarshalling.{FromEntityUnmarshaller, Unmarshal}
@@ -10,6 +10,8 @@ import akka.stream.ActorMaterializer
 import tshy0931.com.github.weichain.module.BlockChainModule._
 import tshy0931.com.github.weichain.module.ConfigurationModule._
 import tshy0931.com.github.weichain.module.ValidationModule._
+import tshy0931.com.github.weichain.module.MiningModule._
+import tshy0931.com.github.weichain.module.NetworkModule._
 import BlockHeaderValidation._
 import TransactionValidation._
 
@@ -19,12 +21,22 @@ import akka.http.scaladsl.marshalling.{Marshal, ToEntityMarshaller}
 import cats.data.Validated.Valid
 import monix.eval.Task
 import monix.execution.CancelableFuture
-import shapeless.the
-import tshy0931.com.github.weichain.database.Database
+import tshy0931.com.github.weichain._
+import tshy0931.com.github.weichain.database.{Database, MemPool}
 import tshy0931.com.github.weichain.message._
 import tshy0931.com.github.weichain.model.Block.BlockHeader
-import tshy0931.com.github.weichain.network.Protocol.{EndpointResponse, HeadersResponse, ResponseEnvelope}
+import tshy0931.com.github.weichain.model.{Block, Transaction}
+import tshy0931.com.github.weichain.network.P2PClient.Mine
+import tshy0931.com.github.weichain.network.Protocol.{BroadcastResponse, EndpointResponse, HeadersResponse, ResponseEnvelope}
+
 import scala.concurrent.duration._
+
+object P2PClient {
+
+  def props = Props[P2PClient]
+
+  case class Mine(blockToBe: Block)
+}
 
 class P2PClient extends Actor with ActorLogging {
 
@@ -34,10 +46,29 @@ class P2PClient extends Actor with ActorLogging {
 
   implicit val system: ActorSystem = ActorSystem()
   implicit val materializer: ActorMaterializer = ActorMaterializer()
+  import monix.execution.Scheduler.Implicits.global
 
   val http = Http(context.system)
 
   override def receive: Receive = {
+
+    case Mine(blockToBe) =>
+      mine(blockToBe) flatMap { block =>
+        MemPool[Address].getAll map {
+          _ foreach { peer =>
+            request[Block](block, peer.asUri(DOMAIN_DATA, BLOCK)) { BroadcastResponse(block, peer, _) }
+          }
+        }
+      } runAsync
+//      mine(blockToBe) runOnComplete {
+//        case Success(block) => //TODO broadcast the block to peers immediately
+//          MemPool[Address].getAll map {
+//            _ foreach { peer =>
+//              request[Block](block, peer.asUri(DOMAIN_DATA, BLOCK)) { BroadcastResponse(block, peer, _) }
+//            }
+//          } runAsync
+//        case Failure(error) => log.error("Failed to mine block {}, error {}", blockToBe, error)
+//      }
 
     case EndpointResponse(BLOCKS, peer, HttpResponse(StatusCodes.OK, headers, entity, _)) =>
       // TODO: store relative info to custom headers
@@ -50,7 +81,7 @@ class P2PClient extends Actor with ActorLogging {
         if (remoteVersion.version > version) {
           log.warning("local version is not latest, remote version {}, local versoin {}", remoteVersion.version, version)
         }
-        request[MessageHeader](MessageHeader(), peer.asUri(DOMAIN_CTRL, VERACK)){ EndpointResponse(VERACK, peer, _) }
+        request[MessageHeader](MessageHeader(), peer.asUri(DOMAIN_CTRL, VERACK)) { EndpointResponse(VERACK, peer, _) }
       }
 
     case EndpointResponse(VERACK, peer, HttpResponse(StatusCodes.OK, _, entity, _)) =>
@@ -73,7 +104,7 @@ class P2PClient extends Actor with ActorLogging {
             case _ =>
               headers.foldLeft(lastConfirmedHeader.valid[ValidationError[BlockHeader]]) { (acc, curr) =>
                 acc match {
-                  case Valid(prev) => verifyHeaders(prev, curr) runSyncUnsafe(30 seconds) //TODO - risky sync call, improve this
+                  case Valid(prev) => verifyBlockHeaders(prev, curr) runSyncUnsafe(30 seconds) //TODO - risky sync call, improve this
                   case invalid => invalid
                 }
               }

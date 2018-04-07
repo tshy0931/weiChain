@@ -17,7 +17,7 @@ object CodecModule extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val txInputFormat = jsonFormat5(Input)
   implicit val transactionFormat = jsonFormat10(Transaction.apply)
   implicit val blockHeaderFormat = jsonFormat7(BlockHeader)
-  implicit val merkleTreeFormat = jsonFormat2(MerkleTree.apply)
+  implicit val merkleTreeFormat = jsonFormat(MerkleTree.apply, "hashes", "nTx")
   implicit val blockBodyFormat = jsonFormat5(BlockBody)
   implicit val addressFormat = jsonFormat2(Address.apply)
   implicit val merkleBlockFormat = jsonFormat4(MerkleBlock)

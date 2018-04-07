@@ -9,6 +9,7 @@ import tshy0931.com.github.weichain.model.Transaction.{Coinbase, Input, Output}
 import tshy0931.com.github.weichain.model.proto.model._
 import monocle.Iso
 import shapeless.the
+import tshy0931.com.github.weichain.network.Address
 
 trait Protobufable[A] {
 
@@ -141,6 +142,16 @@ object Protobufable {
       nTx = tree.nTx
   )}
 
+  val addressIso = Iso[AddressProto, Address]
+  { proto => Address(
+      host = proto.host,
+      port = proto.port
+  )}
+  { addr => AddressProto(
+      host = addr.host,
+      port = addr.port
+  )}
+
   implicit val txProtobufable: Protobufable[Transaction] = instance[Transaction]
     { txIso reverseGet _ toByteArray }
     { txIso get TransactionProto.parseFrom(_) }
@@ -152,4 +163,8 @@ object Protobufable {
   implicit val blkBodyProtobufable: Protobufable[BlockBody] = instance[BlockBody]
     { blockBodyIso reverseGet _ toByteArray }
     { blockBodyIso get BlockBodyProto.parseFrom(_) }
+
+  implicit val addressProtobufable: Protobufable[Address] = instance[Address]
+    { addressIso reverseGet _ toByteArray }
+    { addressIso get AddressProto.parseFrom(_) }
 }
