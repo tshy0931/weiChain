@@ -1,14 +1,14 @@
 package tshy0931.com.github.weichain.model
 
 import monix.eval.Task
-import tshy0931.com.github.weichain._
-import org.scalatest.{path, _}
+import org.scalatest._
 import org.scalatest.prop.TableDrivenPropertyChecks
 import tshy0931.com.github.weichain._
 import tshy0931.com.github.weichain.message.MerkleBlock
 import tshy0931.com.github.weichain.model.Block.BlockHeader
 import tshy0931.com.github.weichain.module.DigestModule._
 import monix.execution.Scheduler.Implicits.global
+import tshy0931.com.github.weichain.testdata.{CommonData, TransactionTestData}
 
 import scala.util.{Failure, Success}
 
@@ -18,27 +18,25 @@ class MerkleTreeSpec extends FlatSpec with GivenWhenThen with Matchers with Insi
 
   it should "build correct Merkle Tree from a collection of string documents" in {
 
-    val hashedTx: Vector[Hash] = testTransactions.map(tx => digestor.digest(tx.getBytes("UTF-8")))
-
-    MerkleTree.build(testTransactions)
+    val hashedTx: Vector[Hash] = testTransactions.map(tx => digest(tx.hash))
 
     testMerkleTree.hashes.size shouldBe 14
 
-    hashedTx(0) shouldBe testMerkleTree.hashAt(7)
-    hashedTx(1) shouldBe testMerkleTree.hashAt(8)
-    hashedTx(2) shouldBe testMerkleTree.hashAt(9)
-    hashedTx(3) shouldBe testMerkleTree.hashAt(10)
-    hashedTx(4) shouldBe testMerkleTree.hashAt(11)
-    hashedTx(5) shouldBe testMerkleTree.hashAt(12)
-    hashedTx(6) shouldBe testMerkleTree.hashAt(13)
+    hashedTx(0).asString shouldBe testMerkleTree.hashAt(7).asString
+    hashedTx(1).asString shouldBe testMerkleTree.hashAt(8).asString
+    hashedTx(2).asString shouldBe testMerkleTree.hashAt(9).asString
+    hashedTx(3).asString shouldBe testMerkleTree.hashAt(10).asString
+    hashedTx(4).asString shouldBe testMerkleTree.hashAt(11).asString
+    hashedTx(5).asString shouldBe testMerkleTree.hashAt(12).asString
+    hashedTx(6).asString shouldBe testMerkleTree.hashAt(13).asString
 
-    testMerkleTree.hashAt(3) shouldBe merge(testMerkleTree.hashAt(7), testMerkleTree.hashAt(8))
-    testMerkleTree.hashAt(4) shouldBe merge(testMerkleTree.hashAt(9), testMerkleTree.hashAt(10))
-    testMerkleTree.hashAt(5) shouldBe merge(testMerkleTree.hashAt(11), testMerkleTree.hashAt(12))
-    testMerkleTree.hashAt(6) shouldBe merge(testMerkleTree.hashAt(13), testMerkleTree.hashAt(13))
+    testMerkleTree.hashAt(3).asString shouldBe merge(testMerkleTree.hashAt(7), testMerkleTree.hashAt(8)).asString
+    testMerkleTree.hashAt(4).asString shouldBe merge(testMerkleTree.hashAt(9), testMerkleTree.hashAt(10)).asString
+    testMerkleTree.hashAt(5).asString shouldBe merge(testMerkleTree.hashAt(11), testMerkleTree.hashAt(12)).asString
+    testMerkleTree.hashAt(6).asString shouldBe merge(testMerkleTree.hashAt(13), testMerkleTree.hashAt(13)).asString
 
-    testMerkleTree.hashAt(0) shouldBe merge(testMerkleTree.hashAt(1), testMerkleTree.hashAt(2))
-    testMerkleTree.hashAt(1) shouldBe merge(testMerkleTree.hashAt(3), testMerkleTree.hashAt(4))
+    testMerkleTree.hashAt(0).asString shouldBe merge(testMerkleTree.hashAt(1), testMerkleTree.hashAt(2)).asString
+    testMerkleTree.hashAt(1).asString shouldBe merge(testMerkleTree.hashAt(3), testMerkleTree.hashAt(4)).asString
   }
 
   it should "always generate the same hash for the same document" in {
@@ -52,7 +50,7 @@ class MerkleTreeSpec extends FlatSpec with GivenWhenThen with Matchers with Insi
   it should "corretly derive path from merkle root to a given transaction if it exists in this merkle tree" in {
 
     forAll(testPaths) { (index, expectedPath) =>
-      val target: String = testTransactions(index)
+      val target = testTransactions(index).hash
       val task: Task[Option[List[Int]]] = testMerkleTree.derivePath(digest(target).asString).value
       task runOnComplete {
         case Success(path) => path should contain(expectedPath)
@@ -63,7 +61,10 @@ class MerkleTreeSpec extends FlatSpec with GivenWhenThen with Matchers with Insi
 
   it should "return None as path when the transaction doesn't exist in the merkle tree" in {
 
-    testMerkleTree.derivePath(digest("no such tx").asString) shouldBe None
+    testMerkleTree.derivePath(digest("no such tx").asString).value.runOnComplete {
+      case Success(path) => path shouldBe None
+      case Failure(err)  => fail(err)
+    }
   }
 
   it should "correctly derive MerkleBlock flags and hashes for a given transaction" in {
@@ -71,7 +72,7 @@ class MerkleTreeSpec extends FlatSpec with GivenWhenThen with Matchers with Insi
     forAll(testFlagsAndHashes) { (txId, flags, hashIndices) =>
 
       val result: Task[Option[MerkleBlock]] =
-        testMerkleTree.deriveMerkleBlockFor(digest(testTransactions(txId)).asString)(testBlockHeader, 0L).value
+        testMerkleTree.deriveMerkleBlockFor(digest(testTransactions(txId).hash).asString)(testBlockHeader, 0L).value
 
       val hashes: Vector[String] = hashIndices map testMerkleTree.hashAt map (_.asString)
 
@@ -105,16 +106,18 @@ class MerkleTreeSpec extends FlatSpec with GivenWhenThen with Matchers with Insi
   }
 }
 
-trait MerkleTreeFixture extends TableDrivenPropertyChecks {
+trait MerkleTreeFixture extends TableDrivenPropertyChecks with TransactionTestData with CommonData {
 
-  val testTransactions: Vector[String] = Vector(
-    "transaction - 01",
-    "transaction - 02",
-    "transaction - 03",
-    "transaction - 04",
-    "transaction - 05",
-    "transaction - 06",
-    "transaction - 07"
+  import tshy0931.com.github.weichain.module.DigestModule._
+
+  val testTransactions: Vector[Transaction] = Vector(
+    txValid(digest("1")),
+    txValid(digest("2")),
+    txValid(digest("3")),
+    txValid(digest("4")),
+    txValid(digest("5")),
+    txValid(digest("6")),
+    txValid(digest("7"))
   )
 
   val testMerkleTree: MerkleTree = MerkleTree.build(testTransactions)

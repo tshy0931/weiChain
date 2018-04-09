@@ -4,7 +4,7 @@ package object weichain {
 
   type Hash = Array[Byte]
 
-  val emptyHash: Hash = "".getBytes("UTF-8")
+  val emptyHash: Hash = "".getBytes
 
   /*** easter egg! ***/
   type WhatEver[A,B] = (A, B)

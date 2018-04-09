@@ -6,10 +6,9 @@ import akka.http.scaladsl.model.HttpResponse
 import com.google.common.base.Charsets
 import shapeless.the
 import com.google.common.hash.{BloomFilter, Funnel, PrimitiveSink}
-import tshy0931.com.github.weichain.model.Transaction
+import tshy0931.com.github.weichain.model.{Address, Transaction}
 import tshy0931.com.github.weichain._
 import tshy0931.com.github.weichain.message.{FilterAdd, FilterLoad}
-import tshy0931.com.github.weichain.network.Address
 
 import scala.collection.JavaConverters._
 import scala.collection.concurrent

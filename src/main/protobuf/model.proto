@@ -23,11 +23,9 @@ message OutputProto {
 }
 
 message InputProto {
-    double value = 1;
-    OutputProto source = 2;
-    bytes address = 3;
-    string scriptSig = 4;
-    int64 sequence = 5;
+    OutputProto source = 1;
+    string scriptSig = 2;
+    int64 sequence = 3;
 }
 
 message TransactionProto {

@@ -1,8 +1,11 @@
 package tshy0931.com.github.weichain.model
 
 import Transaction._
-import shapeless.tag.@@
-import tshy0931.com.github.weichain.Hash
+import monocle.function.all._
+import monocle.{Lens, Traversal}
+import monocle.macros.GenLens
+import tshy0931.com.github.weichain._
+import tshy0931.com.github.weichain.module.DigestModule._
 
 /** Example: https://bitcoin.org/en/developer-reference#raw-transaction-format
   * 01000000 ................................... Version
@@ -50,14 +53,7 @@ case class Transaction(hash: Hash,
 
 object Transaction {
 
-  type BlockCountTag
-  type EpochTimeMillisTag
-  type BlockCount = Long @@ BlockCountTag
-  type EpochTimeMillis = Long @@ EpochTimeMillisTag
-
-  case class Input(value: Double,
-                   source: Output,
-                   address: Hash,
+  case class Input(source: Output,
                    scriptSig: String,
                    sequence: Long = 0xffffffff)
 
@@ -70,4 +66,41 @@ object Transaction {
                     coinbase: Option[Coinbase] = None)
 
   case class Coinbase(script: String)
+
+  lazy val hashLens: Lens[Transaction, Hash] = GenLens[Transaction](_.hash)
+  lazy val txFeeLens: Lens[Transaction, Double] = GenLens[Transaction](_.txFee)
+  lazy val outputLens: Lens[Transaction, Vector[Output]] = GenLens[Transaction](_.txOut)
+  lazy val outputBlockHashLens: Lens[Output, Hash] = GenLens[Output](_.blockHash)
+  lazy val outputTxIndexLens: Lens[Output, Int] = GenLens[Output](_.txIndex)
+  lazy val outputIndexLens: Lens[Output, Int] = GenLens[Output](_.outputIndex)
+
+  lazy val txOutputTraversal: Traversal[Transaction, Output] = outputLens composeTraversal each
+  lazy val txOutputBlockHashTraversal: Traversal[Transaction, Hash] = txOutputTraversal composeLens outputBlockHashLens
+  lazy val txOutputTxIndexTraversal: Traversal[Transaction, Int] = txOutputTraversal composeLens outputTxIndexLens
+  lazy val txOutputIndexTraversal: Traversal[Transaction, Int] = txOutputTraversal composeLens outputIndexLens
+
+  implicit class TransactionOps(tx: Transaction) {
+
+    def updated: Transaction = {
+      val hash = digest(digest(s"""${tx.createTime}
+                       |${tx.lockTime}
+                       |${tx.txOut map {outputHash(_).asString} mkString}
+                       |${tx.txIn map {inputHash(_).asString} mkString}
+                       |""".stripMargin))
+      hashLens.set(hash)(tx)
+    }
+  }
+
+  private def outputHash(output: Output): Hash =
+    digest(digest(s"""${output.value}
+                     |${output.address}
+                     |${output.scriptPubKey}
+                     |${output.coinbase}
+                     |""".stripMargin))
+
+  private def inputHash(input: Input): Hash =
+    digest(digest(s"""${outputHash(input.source)}
+                     |${input.scriptSig}
+                     |${input.sequence}
+                     |""".stripMargin))
 }

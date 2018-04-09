@@ -2,7 +2,7 @@ package tshy0931.com.github.weichain.network
 
 import akka.http.scaladsl.model.HttpResponse
 import tshy0931.com.github.weichain.model.Block.BlockHeader
-import tshy0931.com.github.weichain.model.Transaction
+import tshy0931.com.github.weichain.model.{Address, Transaction}
 
 /**
   * This trait defines behaviours required to perform network communications in the blockchain.
@@ -11,7 +11,7 @@ object Protocol {
 
   sealed trait ResponseEnvelope
   final case class EndpointResponse(endpoint: String, peer: Address, response: HttpResponse) extends ResponseEnvelope
-  final case class HeadersResponse(headersSentInRequest: Vector[BlockHeader], response: HttpResponse) extends ResponseEnvelope
+  final case class HeadersResponse(headersSentInRequest: Vector[BlockHeader], peer: Address, response: HttpResponse) extends ResponseEnvelope
   final case class TxResponse(peer: Address, response: HttpResponse) extends ResponseEnvelope
   final case class BroadcastResponse[A](item: A, peer: Address, response: HttpResponse) extends ResponseEnvelope
 
@@ -23,6 +23,7 @@ object Protocol {
     val TX = "tx"
     val HEADERS = "headers"
     val MERKLEBLOCK = "merkleblock"
+    val MEMPOOL = "mempool"
 
     val DOMAIN_CTRL = "control"
     val ADDRESS = "addr"

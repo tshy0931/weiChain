@@ -3,8 +3,7 @@ package tshy0931.com.github.weichain.database
 import shapeless.the
 import tshy0931.com.github.weichain._
 import tshy0931.com.github.weichain.model.Block.{BlockBody, BlockHeader}
-import tshy0931.com.github.weichain.model.Transaction
-import tshy0931.com.github.weichain.network.Address
+import tshy0931.com.github.weichain.model.{Address, Transaction}
 
 trait Identity[A] {
 

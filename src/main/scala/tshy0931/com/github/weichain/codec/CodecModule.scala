@@ -1,20 +1,33 @@
 package tshy0931.com.github.weichain.codec
 
+import akka.event.Logging
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
-import spray.json.DefaultJsonProtocol
+import spray.json.{DefaultJsonProtocol, JsString, JsValue, RootJsonFormat}
+import tshy0931.com.github.weichain._
 import tshy0931.com.github.weichain.message._
 import tshy0931.com.github.weichain.model.Block.{BlockBody, BlockHeader}
-import tshy0931.com.github.weichain.model.{Block, MerkleTree, Transaction}
+import tshy0931.com.github.weichain.model.{Address, Block, MerkleTree, Transaction}
 import tshy0931.com.github.weichain.model.Transaction.{Coinbase, Input, Output}
+import tshy0931.com.github.weichain.module.NetworkModule.system
 import tshy0931.com.github.weichain.module.ValidationModule.ValidationError
-import tshy0931.com.github.weichain.network.Address
 
 object CodecModule extends SprayJsonSupport with DefaultJsonProtocol {
+
+  lazy val log = Logging(system, this.getClass)
+
+  implicit val byteArrayFormat = new RootJsonFormat[Hash] {
+    override def read(json: JsValue): Hash = json match {
+      case JsString(hash) => hash.getBytes
+      case _ => emptyHash
+    }
+
+    override def write(obj: Hash): JsValue = JsString(obj.asString)
+  }
 
   implicit val versionFormat = jsonFormat6(Version)
   implicit val coinbaseFormat = jsonFormat1(Coinbase)
   implicit val txOutputFormat = jsonFormat7(Output)
-  implicit val txInputFormat = jsonFormat5(Input)
+  implicit val txInputFormat = jsonFormat3(Input)
   implicit val transactionFormat = jsonFormat10(Transaction.apply)
   implicit val blockHeaderFormat = jsonFormat7(BlockHeader)
   implicit val merkleTreeFormat = jsonFormat(MerkleTree.apply, "hashes", "nTx")

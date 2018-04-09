@@ -1,6 +1,6 @@
 package tshy0931.com.github.weichain.network
 
-import cats.syntax.validated._
+import cats.syntax.all._
 import akka.actor.{Actor, ActorLogging, ActorSystem, Props}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
@@ -18,14 +18,15 @@ import TransactionValidation._
 import scala.util.{Failure, Success}
 import Protocol.Endpoints._
 import akka.http.scaladsl.marshalling.{Marshal, ToEntityMarshaller}
-import cats.data.Validated.Valid
+import cats.data.Validated
+import cats.data.Validated.{Invalid, Valid}
 import monix.eval.Task
 import monix.execution.CancelableFuture
 import tshy0931.com.github.weichain._
 import tshy0931.com.github.weichain.database.{Database, MemPool}
 import tshy0931.com.github.weichain.message._
-import tshy0931.com.github.weichain.model.Block.BlockHeader
-import tshy0931.com.github.weichain.model.{Block, Transaction}
+import tshy0931.com.github.weichain.model.Block.{BlockBody, BlockHeader}
+import tshy0931.com.github.weichain.model.{Address, Block, Transaction}
 import tshy0931.com.github.weichain.network.P2PClient.Mine
 import tshy0931.com.github.weichain.network.Protocol.{BroadcastResponse, EndpointResponse, HeadersResponse, ResponseEnvelope}
 
@@ -35,7 +36,7 @@ object P2PClient {
 
   def props = Props[P2PClient]
 
-  case class Mine(blockToBe: Block)
+  case class Mine(prevBlock: Block)
 }
 
 class P2PClient extends Actor with ActorLogging {
@@ -52,29 +53,24 @@ class P2PClient extends Actor with ActorLogging {
 
   override def receive: Receive = {
 
-    case Mine(blockToBe) =>
-      mine(blockToBe) flatMap { block =>
+    case Mine(prevBlock) =>
+      mine(prevBlock) flatMap { block =>
         MemPool[Address].getAll map {
           _ foreach { peer =>
             request[Block](block, peer.asUri(DOMAIN_DATA, BLOCK)) { BroadcastResponse(block, peer, _) }
           }
         }
       } runAsync
-//      mine(blockToBe) runOnComplete {
-//        case Success(block) => //TODO broadcast the block to peers immediately
-//          MemPool[Address].getAll map {
-//            _ foreach { peer =>
-//              request[Block](block, peer.asUri(DOMAIN_DATA, BLOCK)) { BroadcastResponse(block, peer, _) }
-//            }
-//          } runAsync
-//        case Failure(error) => log.error("Failed to mine block {}, error {}", blockToBe, error)
-//      }
 
     case EndpointResponse(BLOCKS, peer, HttpResponse(StatusCodes.OK, headers, entity, _)) =>
       // TODO: store relative info to custom headers
-//      parse[Block](entity) { block =>
-//        //TODO: persist block
-//      }
+      parse[Block](entity) { case Block(header, body) =>
+        (Database[BlockHeader].save(header), Database[BlockBody].save(body)) parMapN {
+          (headerOk, bodyOk) =>
+            if(!headerOk) log.error("Database save failed on block header {}", header)
+            if(!bodyOk)   log.error("Database save failed on block body {}", body)
+        }
+      }
 
     case EndpointResponse(VERSION, peer, HttpResponse(StatusCodes.OK, _, entity, _)) =>
       parse[Version](entity) { remoteVersion =>
@@ -89,35 +85,43 @@ class P2PClient extends Actor with ActorLogging {
       entity.discardBytes(materializer)
       request[MessageHeader](MessageHeader(), peer.asUri(DOMAIN_CTRL, HEADERS)) { EndpointResponse(VERACK, peer, _) }
 
-    case HeadersResponse(headersSentInRequest, HttpResponse(StatusCodes.OK, _, entity, _)) =>
+    case HeadersResponse(headersSentInRequest, peer, HttpResponse(StatusCodes.OK, _, entity, _)) =>
 
       parse[Headers](entity) { case Headers(count, forkIndex, headers) =>
-        Task.eval {
+        Task {
           // TODO: How to trigger async block downloads?
           val lastConfirmedHeader: BlockHeader = if(forkIndex == 0) {
             genesisBlock.value.header
           } else {
             headersSentInRequest(forkIndex - 1)
           }
-          val a = count match {
+          count match {
             case 0 => ValidationError("no block header received from peer", headers).invalid
             case _ =>
-              headers.foldLeft(lastConfirmedHeader.valid[ValidationError[BlockHeader]]) { (acc, curr) =>
-                acc match {
-                  case Valid(prev) => verifyBlockHeaders(prev, curr) runSyncUnsafe(30 seconds) //TODO - risky sync call, improve this
-                  case invalid => invalid
+              val validation: Validated[ValidationError[BlockHeader], BlockHeader] =
+                headers.foldLeft(lastConfirmedHeader.valid[ValidationError[BlockHeader]]) { (acc, curr) =>
+                  acc match {
+                    case Valid(prev) => verifyBlockHeaders(prev, curr) runSyncUnsafe(30 seconds) //TODO - risky sync call, improve this
+                    case invalid     => invalid
+                  }
+                }
+              validation match {
+                case Invalid(err) => log.error("invalid headers in headers response from peer {}, error {}", peer, err)
+                case Valid(_)     => getBestLocalHeaderChain transform { chain =>
+                  // drop forked headers on best local header chain and append valid ones
+                  val (beforeFork, forked) = chain.splitAt(forkIndex)
+                  val correctOnes = headers.drop(forkIndex)
+                  val deleteForked = Database[BlockHeader].deleteItems(forked:_*)
+                  val saveCorrect = Task.gatherUnordered(correctOnes map {Database[BlockHeader].save})
+                  (deleteForked, saveCorrect) parMapN {
+                    (_, _) => ()
+                  }
+                  beforeFork ++ correctOnes
                 }
               }
           }
-          // overwrite forked headers
-          if (forkIndex < headers.size) {
-            headers.takeRight(headers.size - forkIndex) map {
-              Database[BlockHeader].save
-            }
-          }
-        } runOnComplete {
-          case Success(a) =>
-          case Failure(err) =>
+        } onErrorRecover{
+          case error => log.error("Error when updating forked block headers in database, {}", error)
         }
       }
   }

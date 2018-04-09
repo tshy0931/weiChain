@@ -14,10 +14,12 @@ import tshy0931.com.github.weichain.database.Database
 
 object BlockChainModule {
 
-  val genesisHash = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f".getBytes("UTF-8")
-  val genesisMerkleRoot = "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b".getBytes("UTF-8")
-  val genesisPrevHash = "0000000000000000000000000000000000000000000000000000000000000000".getBytes("UTF-8")
-  val genesisNonce = 2083236893
+  val genesisHash = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f".getBytes
+  val genesisMerkleRoot = "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b".getBytes
+  val genesisPrevHash = "0000000000000000000000000000000000000000000000000000000000000000".getBytes
+  val genesisNonce = 2083236893L
+  val genesisTime = 1521820483592L
+  val genesisNBits = 486604799L
 
   val genesisBlock: Coeval[Block] = Coeval.evalOnce(
     Block(
@@ -26,8 +28,8 @@ object BlockChainModule {
         version = 1,
         prevHeaderHash = genesisPrevHash,
         merkleRoot = genesisMerkleRoot,
-        time = 1521820483592L,
-        nBits = 486604799,
+        time = genesisTime,
+        index = genesisNBits,
         nonce = genesisNonce
       ),
       body = BlockBody(
@@ -40,7 +42,7 @@ object BlockChainModule {
     )
   )
 
-  val bestLocalHeaderChain: Coeval[Atomic[Vector[BlockHeader]]] =
+  private val bestLocalHeaderChain: Coeval[Atomic[Vector[BlockHeader]]] =
     genesisBlock map { blk => Atomic(Vector(blk.header)) } memoizeOnSuccess
 
   def getBestLocalHeaderChain: Atomic[Vector[BlockHeader]] = bestLocalHeaderChain.value
@@ -50,13 +52,17 @@ object BlockChainModule {
   var blocksSynced: Atomic[Boolean] = Atomic(false)
   var headersSynced: Atomic[Boolean] = Atomic(false)
 
+  def latestHeader: BlockHeader = getBestLocalHeaderChain.get.last
   def latestBlock: Task[Block] = blockWithHash(getBestLocalHeaderChain.get.last.hash.asString) getOrElse genesisBlock.value
 
+  // TODO maintain an index or bloomfilter to find in which block a given tx is
   def blockWithHash(hash: String): OptionT[Task, Block] = OptionT(
     (Database[BlockHeader].find(hash), Database[BlockBody].find(hash)) parMapN {
       case (Some(header), Some(body)) => Block(header, body).some
       case _ => None
     })
+
+  def transactionWithHash(hash: String): Task[Option[Transaction]] = Database[Transaction].find(hash)
 
   def merkleBlockOf(blockHash: String, txHash: String): OptionT[Task, MerkleBlock] = {
     for {

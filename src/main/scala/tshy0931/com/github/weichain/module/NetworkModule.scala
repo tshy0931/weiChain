@@ -1,7 +1,7 @@
 package tshy0931.com.github.weichain.module
 
 import akka.Done
-import akka.actor.ActorSystem
+import akka.actor.{ActorRef, ActorSystem}
 import akka.event.Logging
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.Http.ServerBinding
@@ -14,19 +14,21 @@ import tshy0931.com.github.weichain._
 import DigestModule._
 import BlockChainModule._
 import FilterModule._
+import MiningModule._
 import ValidationModule.TransactionValidation._
 import tshy0931.com.github.weichain.message._
 import tshy0931.com.github.weichain.model.Block.BlockHeader
-import tshy0931.com.github.weichain.network.Address
 import ConfigurationModule._
 import ValidationModule.BlockBodyValidation._
 import akka.pattern.CircuitBreaker
 import cats.data.Validated.{Invalid, Valid}
-import monix.eval.Task
+import cats.syntax.all._
+import monix.eval.{Coeval, Task}
 import monix.execution.CancelableFuture
 import tshy0931.com.github.weichain.codec.CodecModule._
 import tshy0931.com.github.weichain.database.MemPool
-import tshy0931.com.github.weichain.model.{Block, Transaction}
+import tshy0931.com.github.weichain.model.{Address, Block, Transaction}
+import tshy0931.com.github.weichain.network.P2PClient
 
 import scala.concurrent.Future
 import scala.util.{Failure, Random, Success}
@@ -54,10 +56,20 @@ object NetworkModule {
     resetTimeout = 1 seconds
   )
 
+  val client: Coeval[ActorRef] = Coeval.evalOnce(system.actorOf(P2PClient.props))
+
   var networkBinding: Http.ServerBinding = _
 
-  def start: Unit = bind(hostName, port) map { binding => networkBinding = binding } recover {
-   case err => log.error("Failed binding to host {} port {}, error {}", hostName, port, err)
+  def start: CancelableFuture[Unit] = {
+    (loadSeedPeers, Task fromFuture bind(hostName, port)) parMapN {
+      (_, binding) => networkBinding = binding
+    } recover {
+      case err => log.error("Failed binding to host {} port {}, error {}", hostName, port, err)
+    }
+  } runAsync
+
+  private def loadSeedPeers: Task[List[Unit]] = Task.gatherUnordered {
+    seeds map { MemPool[Address].put(_, System.currentTimeMillis) }
   }
 
   private def bind(host:String, port:Int): Future[ServerBinding] = Http().bindAndHandle(routes, host, port)
@@ -136,7 +148,7 @@ object NetworkModule {
       //          ???
       //        }
       //    } ~
-      path( DOMAIN_DATA / "mempool" ) {
+      path( DOMAIN_DATA / MEMPOOL ) {
         get {
           val txInMemPool: Task[Seq[Transaction]] = MemPool[Transaction].getAll
           onCompleteWithBreaker(circuitBreaker)(txInMemPool.runAsync) {
@@ -173,12 +185,20 @@ object NetworkModule {
     }
 
     lazy val controlRoute: Route = {
+      path( DOMAIN_CTRL / "mine" ) {
+        get {
+          onCompleteWithBreaker(circuitBreaker)(latestBlock flatMap mine runAsync) {
+            case Success(blk) => complete(OK -> blk)
+            case Failure(err)   => complete(InternalServerError -> err)
+          }
+        }
+      } ~
       path( DOMAIN_CTRL / ADDRESS ) {
         get {
           val peers = MemPool[Address].getAll
           onCompleteWithBreaker(circuitBreaker)(peers runAsync) {
-            case Success(Seq(addrs)) => complete(OK -> addrs)
-            case Failure(err)        => complete(InternalServerError -> err)
+            case Success(addrs) => complete(OK -> addrs)
+            case Failure(err)   => complete(InternalServerError -> err)
           }
         } ~
         post {

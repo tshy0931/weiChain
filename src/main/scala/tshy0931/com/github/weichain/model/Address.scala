@@ -1,4 +1,4 @@
-package tshy0931.com.github.weichain.network
+package tshy0931.com.github.weichain.model
 
 case class Address(host: String, port: Int)
 

@@ -19,9 +19,9 @@ object MerkleTree {
 
   val empty: Coeval[MerkleTree] = Coeval.evalOnce(MerkleTree(Vector.empty, 0))
 
-  def build(documents: Vector[String]): MerkleTree = {
+  def build(transactions: Vector[Transaction]): MerkleTree = {
 
-    var tree: Vector[Hash] = documents map { d => digest(d.getBytes("UTF-8"))}
+    var tree: Vector[Hash] = transactions map { tx => digest(tx.hash) }
     var toMerge: Vector[Hash] = tree
 
     while(toMerge.length > 1){
@@ -30,7 +30,7 @@ object MerkleTree {
       toMerge = newLayer
     }
 
-    MerkleTree(tree, documents.size)
+    MerkleTree(tree, transactions.size)
   }
 
   implicit class MerkleTreeOps(tree: MerkleTree) {

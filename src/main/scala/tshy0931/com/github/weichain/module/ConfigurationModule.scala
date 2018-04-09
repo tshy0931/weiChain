@@ -4,7 +4,7 @@ import com.typesafe.config.{Config, ConfigFactory}
 import monix.eval.Coeval
 import monix.execution.Scheduler
 import monix.execution.schedulers.SchedulerService
-import tshy0931.com.github.weichain.network.Address
+import tshy0931.com.github.weichain.model.Address
 
 object ConfigurationModule {
 

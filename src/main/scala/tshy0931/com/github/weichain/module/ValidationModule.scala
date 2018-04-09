@@ -21,7 +21,7 @@ object ValidationModule {
     type BlockHeaderValidation = (BlockHeader, BlockHeader) => Task[Validated[ValidationError[BlockHeader], BlockHeader]]
 
     def verifyBlockHeaders: BlockHeaderValidation = (prevHeader, currHeader) =>
-      (isValidHash(currHeader), isValidLink(prevHeader, currHeader)) mapN {
+      (isValidHash(currHeader), isValidLink(prevHeader, currHeader)) parMapN {
         case (Valid(header), Valid(_)) => header.valid
         case (Invalid(err1), _) => err1.invalid
         case (_, Invalid(err2)) => err2.invalid
@@ -76,7 +76,7 @@ object ValidationModule {
     }
 
     def hasValidMerkleRoot: BlockBodyValidation = body => Task {
-      val merkleTree = MerkleTree.build(body.transactions map {_.hash.asString})
+      val merkleTree = MerkleTree.build(body.transactions)
       if(merkleTree.root.asString == body.merkleTree.root.asString) {
         body.valid
       } else {
@@ -94,9 +94,9 @@ object ValidationModule {
     
     def verifyTx: Validation[Transaction] = tx =>
       (isValidSource(tx), isValidSpending(tx)) mapN {
-        case (Valid(tx), Valid(_)) => tx.valid
-        case (Invalid(err1), _)     => err1.invalid
-        case (_, Invalid(err2))     => err2.invalid
+        case (Valid(tx), Valid(_)) => tx.updated.valid
+        case (Invalid(err1), _)    => err1.invalid
+        case (_, Invalid(err2))    => err2.invalid
       }
 
     def isValidSource: Validation[Transaction] = tx => {
@@ -106,7 +106,7 @@ object ValidationModule {
           srcBlock <- blockWithHash(in.source.blockHash.asString).value
           srcTx <- Task.now { srcBlock map (_.body.transactions(in.source.txIndex)) }
           srcOut <- Task.now { srcTx map {_.txOut(in.source.outputIndex)} }
-        } yield srcOut.exists(out => (out.address sameElements in.address) && out.value >= in.value)
+        } yield srcOut.exists(out => (out.address sameElements in.source.address) && out.value == in.source.value)
 //        val srcBlock: Option[Block] = blockWithHash(in.source.blockHash.asString).value
 //        val srcTx: Option[Transaction] = srcBlock map (_.body.transactions(in.source.txIndex))
 //        val srcOutput: Option[Transaction.Output] = srcTx map (_.txOut(in.source.outputIndex))
@@ -122,7 +122,7 @@ object ValidationModule {
     def isValidSpending: Validation[Transaction] =
       tx => Task {
         val totalOut: Double = tx.txOut.map(_.value).sum
-        val totalIn: Double = tx.txIn.map(_.value).sum
+        val totalIn: Double = tx.txIn.map(_.source.value).sum
 
         if(totalOut <= totalIn) tx.valid
         else ValidationError(s"output ($totalOut) must not be greater than input ($totalIn)", tx).invalid

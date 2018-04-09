@@ -5,7 +5,7 @@ object BlockChain {
   type BlockChain = BlockChain.type
 
   var version: Int = _
-  val initialHash: Array[Byte] = "Wei".getBytes("UFT-8")
+  val initialHash: Array[Byte] = "Wei".getBytes
   val chain: Vector[Block] = Vector.empty[Block]
 
   def latestBlock: Option[Block] = chain.lastOption

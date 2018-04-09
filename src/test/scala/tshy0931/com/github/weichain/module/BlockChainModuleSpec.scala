@@ -12,11 +12,11 @@ import scala.util.{Failure, Success}
 class BlockChainModuleSpec extends FlatSpec with GivenWhenThen with Matchers with BeforeAndAfterAll with Inside with BlockChainModuleFixture {
 
   override def beforeAll(): Unit = {
-    bestLocalHeaderChain.value.set(generateBlockHeadersFromNumbers(0, 100))
+    getBestLocalHeaderChain.set(generateBlockHeadersFromNumbers(0, 100))
   }
 
   override def afterAll(): Unit = {
-    bestLocalHeaderChain.value.set(Vector.empty)
+    getBestLocalHeaderChain.set(Vector.empty)
   }
 
   behavior of "Blockchain response of getheaders request"
@@ -27,7 +27,7 @@ class BlockChainModuleSpec extends FlatSpec with GivenWhenThen with Matchers wit
     searchHeadersAfter(headersInQuery, 10) runOnComplete {
       case Success((forkIndex, followingChain)) =>
         forkIndex shouldBe 0
-        followingChain shouldBe bestLocalHeaderChain.value.get.take(10)
+        followingChain shouldBe getBestLocalHeaderChain.get.take(10)
       case Failure(error) => fail(error)
     }
   }
@@ -38,7 +38,7 @@ class BlockChainModuleSpec extends FlatSpec with GivenWhenThen with Matchers wit
     searchHeadersAfter(headersInQuery, 20) runOnComplete {
       case Success((forkIndex, followingChain)) =>
         forkIndex shouldBe 0
-        followingChain shouldBe bestLocalHeaderChain.value.get.take(20)
+        followingChain shouldBe getBestLocalHeaderChain.get.take(20)
       case Failure(error) => fail(error)
     }
   }
@@ -49,7 +49,7 @@ class BlockChainModuleSpec extends FlatSpec with GivenWhenThen with Matchers wit
     searchHeadersAfter(headersInQuery, 10) runOnComplete {
       case Success((forkIndex, followingChain)) =>
         forkIndex shouldBe 6
-        followingChain shouldBe bestLocalHeaderChain.value.get.slice(16, 26)
+        followingChain shouldBe getBestLocalHeaderChain.get.slice(16, 26)
       case Failure(error) => fail(error)
     }
   }
@@ -60,7 +60,7 @@ class BlockChainModuleSpec extends FlatSpec with GivenWhenThen with Matchers wit
     searchHeadersAfter(headersInQuery, 10) runOnComplete {
       case Success((forkIndex, followingChain)) =>
         forkIndex shouldBe 10
-        followingChain shouldBe bestLocalHeaderChain.value.get.slice(20, 30)
+        followingChain shouldBe getBestLocalHeaderChain.get.slice(20, 30)
       case Failure(error) => fail(error)
     }
   }
@@ -69,7 +69,7 @@ class BlockChainModuleSpec extends FlatSpec with GivenWhenThen with Matchers wit
 trait BlockChainModuleFixture extends TableDrivenPropertyChecks {
 
   private def generateHashesFromNumbers(start: Int, end: Int): Vector[Hash] =
-    (start to end) map { _.toString.getBytes("UTF-8") } toVector
+    (start to end) map { _.toString.getBytes } toVector
 
   def generateBlockHeadersFromNumbers(start: Int, end: Int): Vector[BlockHeader] =
     generateHashesFromNumbers(start, end) map { hash => BlockHeader(hash, 1, hash, hash, 1L, 1L, 1L) }

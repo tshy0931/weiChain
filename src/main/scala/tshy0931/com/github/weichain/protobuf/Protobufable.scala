@@ -1,15 +1,15 @@
 package tshy0931.com.github.weichain.protobuf
 
+import java.io.ByteArrayInputStream
+
 import cats.syntax.option._
 import com.google.protobuf.ByteString
-import tshy0931.com.github.weichain.Hash
 import tshy0931.com.github.weichain.model.Block.{BlockBody, BlockHeader}
-import tshy0931.com.github.weichain.model.{MerkleTree, Transaction}
+import tshy0931.com.github.weichain.model.{Address, MerkleTree, Transaction}
 import tshy0931.com.github.weichain.model.Transaction.{Coinbase, Input, Output}
 import tshy0931.com.github.weichain.model.proto.model._
 import monocle.Iso
 import shapeless.the
-import tshy0931.com.github.weichain.network.Address
 
 trait Protobufable[A] {
 
@@ -82,16 +82,12 @@ object Protobufable {
 
   val inputIso = Iso[InputProto, Input]
   { proto => Input(
-      proto.value,
       proto.source map outputIso.get get,
-      proto.address,
       proto.scriptSig,
       proto.sequence
   )}
   { input => InputProto(
-      input.value,
       input.source.some map outputIso.reverseGet,
-      ByteString.copyFrom(input.address),
       input.scriptSig,
       input.sequence
   )}
@@ -103,7 +99,7 @@ object Protobufable {
       prevHeaderHash = proto.prevHeaderHash,
       merkleRoot = proto.merkleRoot,
       time = proto.time,
-      nBits = proto.nBits,
+      index = proto.nBits,
       nonce = proto.nonce
   )}
   { header => BlockHeaderProto(
@@ -112,7 +108,7 @@ object Protobufable {
       prevHeaderHash = header.prevHeaderHash,
       merkleRoot = header.merkleRoot,
       time = header.time,
-      nBits = header.nBits,
+      nBits = header.index,
       nonce = header.nonce
   )}
 
@@ -153,18 +149,18 @@ object Protobufable {
   )}
 
   implicit val txProtobufable: Protobufable[Transaction] = instance[Transaction]
-    { txIso reverseGet _ toByteArray }
-    { txIso get TransactionProto.parseFrom(_) }
+    { txIso reverseGet _ toByteString }
+    { ba => txIso get TransactionProto.parseFrom(new ByteArrayInputStream(ba)) }
 
   implicit val blkHeaderProtobufable: Protobufable[BlockHeader] = instance[BlockHeader]
-    { blockHeaderIso reverseGet _ toByteArray }
+    { blockHeaderIso reverseGet _ toByteString }
     { blockHeaderIso get BlockHeaderProto.parseFrom(_) }
 
   implicit val blkBodyProtobufable: Protobufable[BlockBody] = instance[BlockBody]
-    { blockBodyIso reverseGet _ toByteArray }
+    { blockBodyIso reverseGet _ toByteString }
     { blockBodyIso get BlockBodyProto.parseFrom(_) }
 
   implicit val addressProtobufable: Protobufable[Address] = instance[Address]
-    { addressIso reverseGet _ toByteArray }
+    { addressIso reverseGet _ toByteString }
     { addressIso get AddressProto.parseFrom(_) }
 }
