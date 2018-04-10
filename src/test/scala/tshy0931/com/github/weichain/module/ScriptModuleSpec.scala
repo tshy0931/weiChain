@@ -29,10 +29,12 @@ class ScriptModuleSpec extends FlatSpec with GivenWhenThen with Matchers with In
 
   it should "successfully verify script hash and execute the redeem script" in {
     //TODO
+    fail()
   }
 
   it should "fail validation on invalid redeem script and NOT execute the script" in {
     //TODO
+    fail()
   }
 
   behavior of "MultiSig scripts"

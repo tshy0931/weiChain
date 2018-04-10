@@ -26,7 +26,7 @@ import tshy0931.com.github.weichain._
 import tshy0931.com.github.weichain.database.{Database, MemPool}
 import tshy0931.com.github.weichain.message._
 import tshy0931.com.github.weichain.model.Block.{BlockBody, BlockHeader}
-import tshy0931.com.github.weichain.model.{Address, Block, Transaction}
+import tshy0931.com.github.weichain.model.{Address, Block, Chain, Transaction}
 import tshy0931.com.github.weichain.network.P2PClient.Mine
 import tshy0931.com.github.weichain.network.Protocol.{BroadcastResponse, EndpointResponse, HeadersResponse, ResponseEnvelope}
 
@@ -36,7 +36,7 @@ object P2PClient {
 
   def props = Props[P2PClient]
 
-  case class Mine(prevBlock: Block)
+  case class Mine(prevBlockHeader: BlockHeader)
 }
 
 class P2PClient extends Actor with ActorLogging {
@@ -53,8 +53,8 @@ class P2PClient extends Actor with ActorLogging {
 
   override def receive: Receive = {
 
-    case Mine(prevBlock) =>
-      mine(prevBlock) flatMap { block =>
+    case Mine(prevBlockHeader) =>
+      mine(prevBlockHeader) flatMap { block =>
         MemPool[Address].getAll map {
           _ foreach { peer =>
             request[Block](block, peer.asUri(DOMAIN_DATA, BLOCK)) { BroadcastResponse(block, peer, _) }
@@ -91,7 +91,7 @@ class P2PClient extends Actor with ActorLogging {
         Task {
           // TODO: How to trigger async block downloads?
           val lastConfirmedHeader: BlockHeader = if(forkIndex == 0) {
-            genesisBlock.value.header
+            genesisBlock.header
           } else {
             headersSentInRequest(forkIndex - 1)
           }
@@ -107,17 +107,7 @@ class P2PClient extends Actor with ActorLogging {
                 }
               validation match {
                 case Invalid(err) => log.error("invalid headers in headers response from peer {}, error {}", peer, err)
-                case Valid(_)     => getBestLocalHeaderChain transform { chain =>
-                  // drop forked headers on best local header chain and append valid ones
-                  val (beforeFork, forked) = chain.splitAt(forkIndex)
-                  val correctOnes = headers.drop(forkIndex)
-                  val deleteForked = Database[BlockHeader].deleteItems(forked:_*)
-                  val saveCorrect = Task.gatherUnordered(correctOnes map {Database[BlockHeader].save})
-                  (deleteForked, saveCorrect) parMapN {
-                    (_, _) => ()
-                  }
-                  beforeFork ++ correctOnes
-                }
+                case Valid(_)     => Chain[BlockHeader].update(headers, forkIndex)
               }
           }
         } onErrorRecover{

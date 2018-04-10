@@ -40,7 +40,7 @@ case class MerkleBlock(blockHeader: BlockHeader,
 
 case class Headers(count: Int,
                    forkIndex: Int,
-                   headers: Vector[BlockHeader])
+                   headers: Seq[BlockHeader])
 
 case class Blocks(count: Int,
                   blockHashes: Vector[Hash])

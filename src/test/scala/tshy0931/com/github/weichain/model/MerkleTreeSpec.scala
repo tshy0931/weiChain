@@ -144,5 +144,5 @@ trait MerkleTreeFixture extends TableDrivenPropertyChecks with TransactionTestDa
     (6, Vector(1,0,1,0,1,1),   Vector(1,5,13))
   )
 
-  val testBlockHeader = BlockHeader(Array.emptyByteArray, 0, Array.emptyByteArray, Array.emptyByteArray, 0L, 0L, 0L)
+  val testBlockHeader = BlockHeader(Array.emptyByteArray, 0, Array.emptyByteArray, Array.emptyByteArray, 0L, 0, 0L)
 }

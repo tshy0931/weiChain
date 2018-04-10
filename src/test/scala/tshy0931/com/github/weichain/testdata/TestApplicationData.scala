@@ -89,6 +89,6 @@ trait TestApplicationData extends CommonData {
   val merkleTree1 = MerkleTree.build(Vector(tx1))
   val merkleTree2 = MerkleTree.build(Vector(tx2))
 
-  lazy val blk1 = mineWithTransactions(Vector(tx1), genesisBlock.value) runSyncUnsafe(120 seconds)
-  lazy val blk2 = mineWithTransactions(Vector(tx2), genesisBlock.value) runSyncUnsafe(120 seconds)
+  lazy val blk1 = mineWithTransactions(Vector(tx1), genesisBlockHeader) runSyncUnsafe(120 seconds)
+  lazy val blk2 = mineWithTransactions(Vector(tx2), genesisBlockHeader) runSyncUnsafe(120 seconds)
 }

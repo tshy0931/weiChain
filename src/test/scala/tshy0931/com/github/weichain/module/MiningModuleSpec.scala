@@ -16,7 +16,7 @@ class MiningModuleSpec extends FlatSpec with GivenWhenThen with Matchers with In
   behavior of "Mining"
 
   it should "find valid nonce when finished mining a block" in {
-    mineWithTransactions(Vector(tx1), genesisBlock.value) runOnComplete {
+    mineWithTransactions(Vector(tx1), genesisBlockHeader) runOnComplete {
       case Success(block) =>
         block.header.hash.asString startsWith difficulty shouldBe true
         applyNonce(computeHash(genesisHash, merkleTree1.root), block.header.nonce).asString shouldBe block.header.hash.asString

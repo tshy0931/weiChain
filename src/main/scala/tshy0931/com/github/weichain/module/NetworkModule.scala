@@ -129,7 +129,7 @@ object NetworkModule {
                 if(blockHeaders.isEmpty){
                   complete(BadRequest -> "No block header specified in request.")
                 } else {
-                  val task: Task[(Int, Vector[BlockHeader])] = searchHeadersAfter(blockHeaders, count.getOrElse(maxHeadersPerRequest))
+                  val task: Task[(Int, Seq[BlockHeader])] = searchHeadersAfter(blockHeaders, count.getOrElse(maxHeadersPerRequest))
                   onCompleteWithBreaker(circuitBreaker)(task.runAsync) {
                     case Success((forkIndex, headers)) => complete(Headers(headers.size, forkIndex, headers))
                     case Failure(err)                  => complete(InternalServerError -> err)
@@ -187,7 +187,7 @@ object NetworkModule {
     lazy val controlRoute: Route = {
       path( DOMAIN_CTRL / "mine" ) {
         get {
-          onCompleteWithBreaker(circuitBreaker)(latestBlock flatMap mine runAsync) {
+          onCompleteWithBreaker(circuitBreaker)(latestHeader flatMap mine runAsync) {
             case Success(blk) => complete(OK -> blk)
             case Failure(err)   => complete(InternalServerError -> err)
           }
@@ -306,10 +306,12 @@ object NetworkModule {
         extractClientIP { ip =>
           post {
             entity(as[Version]) { _ =>
-              val save = MemPool[Address].put(ip.toAddress, System.currentTimeMillis)
-              val msg = Version(version, services, System.currentTimeMillis(), Random.nextLong(), chainHeight, relay)
-              onCompleteWithBreaker(circuitBreaker)(save runAsync) {
-                case Success(_)   => complete(OK -> msg)
+              val task: Task[Version] = MemPool[Address].put(ip.toAddress, System.currentTimeMillis) map { _ =>
+                Version(version, services, System.currentTimeMillis(), Random.nextLong(), versionStartHeight, relay)
+              }
+
+              onCompleteWithBreaker(circuitBreaker)(task runAsync) {
+                case Success(msg) => complete(OK -> msg)
                 case Failure(err) => complete(InternalServerError -> err)
               }
             }

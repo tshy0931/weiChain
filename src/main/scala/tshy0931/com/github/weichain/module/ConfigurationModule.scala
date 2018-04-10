@@ -10,7 +10,8 @@ object ConfigurationModule {
 
   val config: Config = ConfigFactory.load()
 
-  val version: Int = config.getInt("version")
+  val version: Int = config.getInt("version.no")
+  val versionStartHeight: Int = config.getInt("version.startHeight")
   val services: Long = config.getLong("services")
   val relay: Boolean = config.getBoolean("relay")
 

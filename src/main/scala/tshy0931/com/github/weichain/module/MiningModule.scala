@@ -2,8 +2,9 @@ package tshy0931.com.github.weichain.module
 
 import tshy0931.com.github.weichain._
 import tshy0931.com.github.weichain.model.Block._
-import monix.eval.Task
+import monix.eval.{Coeval, Task}
 import tshy0931.com.github.weichain.model.Transaction._
+import BlockChainModule.genesisHash
 import tshy0931.com.github.weichain.model.{Block, MerkleTree, Transaction}
 import ConfigurationModule.version
 
@@ -20,18 +21,18 @@ object MiningModule {
     */
   def difficulty: String = "00"
 
-  def mine(prevBlock: Block): Task[Block] = {
+  def mine(prevBlockHeader: BlockHeader): Task[Block] = {
     for {
       txs   <- selectTransactions
-      block <- mineWithTransactions(txs, prevBlock)
+      block <- mineWithTransactions(txs, prevBlockHeader)
     } yield block
   }
 
-  def mineWithTransactions(txs: Vector[Transaction], prevBlock: Block): Task[Block] =
+  def mineWithTransactions(txs: Vector[Transaction], prevBlockHeader: BlockHeader): Task[Block] =
     for {
-      pow <- proofOfWork(txs, prevBlock, difficulty)
+      pow <- proofOfWork(txs, prevBlockHeader.hash, difficulty)
       (nonce, resultHash, merkleTree) = pow
-    } yield buildBlock(prevBlock, txs, merkleTree, resultHash, nonce)
+    } yield buildBlock(prevBlockHeader, txs, merkleTree, resultHash, nonce)
 
   /**
   Select a set of preferable transactions to include in the block to create. Rules are:
@@ -44,11 +45,11 @@ object MiningModule {
   }
 
   private def proofOfWork(transactions: Vector[Transaction],
-                          prevBlock: Block,
+                          prevHeaderHash: Hash,
                           difficulty: String): Task[(Int, Hash, MerkleTree)] = Task {
 
     val merkleTree = MerkleTree.build(transactions)
-    val unnoncedHeaderHash = computeHash(prevBlock.header.hash, merkleTree.root)
+    val unnoncedHeaderHash = computeHash(prevHeaderHash, merkleTree.root)
     var nonce: Int = 0
     var resultHash: Hash = Array.emptyByteArray
 
@@ -60,20 +61,20 @@ object MiningModule {
     (nonce, resultHash, merkleTree)
   }
 
-  private[this] def buildBlock(prevBlock: Block,
+  private[this] def buildBlock(prevBlockHeader: BlockHeader,
                                transactions: Vector[Transaction],
                                merkleTree: MerkleTree,
                                resultHash: Hash,
                                nonce: Int): Block = {
     val merkleTree = MerkleTree.build(transactions)
-    val blockIndex = prevBlock.header.index+1
+    val blockIndex = prevBlockHeader.height+1
 
     val header = BlockHeader(
       hash = resultHash,
       version = version,
-      prevHeaderHash = prevBlock.header.hash,
+      prevHeaderHash = prevBlockHeader.hash,
       merkleRoot = merkleTree.root,
-      index = blockIndex,
+      height = blockIndex,
       nonce = nonce
     )
 
@@ -90,7 +91,7 @@ object MiningModule {
   private[this] def updateBlockDetails(txs: Vector[Transaction], header: BlockHeader): Vector[Transaction] =
     txs.zipWithIndex map {
       case (tx, index) => (
-        txBlockIndexLens.set(header.index) andThen
+        txBlockIndexLens.set(header.height) andThen
         txOutputBlockHashTraversal.set(header.hash) andThen
         txOutputTxIndexTraversal.set(index)
       ) (tx)

@@ -28,7 +28,7 @@ object Block {
     * @param prevHeaderHash - hash of previous block header
     * @param merkleRoot - root value of the Merkle tree built on transactions in this block
     * @param time - Unix epoch time when the miner started hashing the header. Must be within [median time of previous 11 blocks, 2 hours in future]
-    * @param index - encoded version of the target threshold the header hash must be less than, aka difficulty.
+    * @param height - encoded version of the target threshold the header hash must be less than, aka difficulty.
     * @param nonce - the number to hash with block header and produce a hash less than the target threshold. proof of work.
     */
   case class BlockHeader(hash: Hash,
@@ -36,7 +36,7 @@ object Block {
                          prevHeaderHash: Hash,
                          merkleRoot: Hash,
                          time: Long = System.currentTimeMillis,
-                         index: Long,
+                         height: Int,
                          nonce: Long = 0L)
 
   /**

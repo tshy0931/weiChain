@@ -99,7 +99,7 @@ object Protobufable {
       prevHeaderHash = proto.prevHeaderHash,
       merkleRoot = proto.merkleRoot,
       time = proto.time,
-      index = proto.nBits,
+      height = proto.height,
       nonce = proto.nonce
   )}
   { header => BlockHeaderProto(
@@ -108,7 +108,7 @@ object Protobufable {
       prevHeaderHash = header.prevHeaderHash,
       merkleRoot = header.merkleRoot,
       time = header.time,
-      nBits = header.index,
+      height = header.height,
       nonce = header.nonce
   )}
 

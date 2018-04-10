@@ -2,58 +2,46 @@ package tshy0931.com.github.weichain.module
 
 import cats.syntax.all._
 import tshy0931.com.github.weichain._
-import tshy0931.com.github.weichain.model.{Block, MerkleTree, Transaction}
+import tshy0931.com.github.weichain.model.{Block, Chain, MerkleTree, Transaction}
 import tshy0931.com.github.weichain.model.Block.{BlockBody, BlockHeader}
+import DigestModule._
 import ConfigurationModule._
+import MiningModule._
 import cats.data.OptionT
-import monix.eval.{Coeval, Task}
+import monix.eval.Task
 import tshy0931.com.github.weichain.message.MerkleBlock
 import tshy0931.com.github.weichain.database.Database._
 import monix.execution.atomic._
 import tshy0931.com.github.weichain.database.Database
 
+import scala.concurrent.duration._
 object BlockChainModule {
 
-  val genesisHash = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f".getBytes
-  val genesisMerkleRoot = "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b".getBytes
-  val genesisPrevHash = "0000000000000000000000000000000000000000000000000000000000000000".getBytes
-  val genesisNonce = 2083236893L
-  val genesisTime = 1521820483592L
-  val genesisNBits = 486604799L
+  import monix.execution.Scheduler.Implicits.global
 
-  val genesisBlock: Coeval[Block] = Coeval.evalOnce(
-    Block(
-      header = BlockHeader(
-        hash = genesisHash,
-        version = 1,
-        prevHeaderHash = genesisPrevHash,
-        merkleRoot = genesisMerkleRoot,
-        time = genesisTime,
-        index = genesisNBits,
-        nonce = genesisNonce
-      ),
-      body = BlockBody(
-        headerHash = genesisHash,
-        merkleTree = MerkleTree(Vector(genesisMerkleRoot), 1),
-        nTx = 1,
-        size = 100L,
-        transactions = Vector.empty[Transaction]
-      )
-    )
+  val genesisHash: Hash = digest("tshy0931")
+  val genesisTime: Long = 1211976000000L
+  val genesisBlockHeader: BlockHeader = BlockHeader(
+    hash = genesisHash,
+    version = 1,
+    prevHeaderHash = emptyHash,
+    merkleRoot = MerkleTree.build(Vector.empty).root,
+    time = genesisTime,
+    height = 0
   )
 
-  private val bestLocalHeaderChain: Coeval[Atomic[Vector[BlockHeader]]] =
-    genesisBlock map { blk => Atomic(Vector(blk.header)) } memoizeOnSuccess
+  val genesisBlock: Block = mineWithTransactions(Vector.empty, genesisBlockHeader) runSyncUnsafe(60 seconds)
 
-  def getBestLocalHeaderChain: Atomic[Vector[BlockHeader]] = bestLocalHeaderChain.value
-
-  def chainHeight: Long = getBestLocalHeaderChain.get.size
+  def chainHeight: Task[Long] = Chain[BlockHeader].size
 
   var blocksSynced: Atomic[Boolean] = Atomic(false)
   var headersSynced: Atomic[Boolean] = Atomic(false)
 
-  def latestHeader: BlockHeader = getBestLocalHeaderChain.get.last
-  def latestBlock: Task[Block] = blockWithHash(getBestLocalHeaderChain.get.last.hash.asString) getOrElse genesisBlock.value
+  def latestHeader: Task[BlockHeader] = Chain[BlockHeader].last(1) map { _.head }
+  def latestBlock: Task[Block] = for {
+    header <- latestHeader
+    block  <- blockWithHash(header.hash.asString) getOrElse genesisBlock
+  } yield block
 
   // TODO maintain an index or bloomfilter to find in which block a given tx is
   def blockWithHash(hash: String): OptionT[Task, Block] = OptionT(
@@ -71,11 +59,6 @@ object BlockChainModule {
     } yield merkleBlock
   }
 
-//  def getBlocksByHashes(hashes: Vector[Hash]): Task[Vector[Option[Block]]] =
-//    Task.eval {
-//      hashes map { hash => blockWithHash(hash.asString) }
-//    }
-
   /**
     * Search best local header chain to locate the earliest header in the given headers.
     * If there is a fork between this and peer's best chain,
@@ -84,23 +67,29 @@ object BlockChainModule {
     * @param count - number of headers following the given headers to return
     * @return - headers following the given headers on local best header chain.
     */
-  def searchHeadersAfter(headers: Vector[BlockHeader], count: Int = maxHeadersPerRequest): Task[(Int, Vector[BlockHeader])] =
-    Task.eval {
-      var forkIndex: Int = 0
-      val peerChain: Iterator[BlockHeader] = headers.iterator
-      val peerChainHead: BlockHeader = peerChain.next
-      val matchingChain: Vector[BlockHeader] =
-        getBestLocalHeaderChain.get.dropWhile( header => header.hash.asString != peerChainHead.hash.asString )
-
-      if(matchingChain.isEmpty) {
-        (forkIndex, getBestLocalHeaderChain.get take count)
-      } else {
-        val followingChain: Vector[BlockHeader] = (matchingChain drop 1) dropWhile { header =>
-          forkIndex += 1
-          peerChain.hasNext && header.hash.asString == peerChain.next.hash.asString
-        } take count
-
-        (forkIndex, followingChain)
-      }
+  def searchHeadersAfter(headers: Seq[BlockHeader], count: Int = maxHeadersPerRequest): Task[(Int, Seq[BlockHeader])] =
+    if(headers.isEmpty) {
+      // return count number of headers starting from genesisBlockHeader
+      Chain[BlockHeader].first(count) map {(0, _)}
+    } else {
+//      val peerChain: Iterator[BlockHeader] = headers.iterator
+//      val peerChainHead: BlockHeader = peerChain.next
+      for {
+        localSlice  <- Chain[BlockHeader].slice(headers.head.height, headers.head.height + headers.size)
+        forkIndex   <- findFork(localSlice, headers)
+        correctOnes <- headersAfterFork(forkIndex, count)
+      } yield (forkIndex, correctOnes)
     }
+
+  private[this] def findFork(localSlice: Seq[BlockHeader], peerSlice: Seq[BlockHeader]): Task[Int] =
+    Task.eval {
+      val iter = peerSlice.iterator
+      val afterFork: Seq[BlockHeader] = localSlice.dropWhile { localHeader =>
+        iter.hasNext && iter.next.hash.sameElements(localHeader.hash)
+      }
+      afterFork.headOption map {_.height} getOrElse localSlice.last.height+1
+    }
+
+  private[this] def headersAfterFork(forkIndex: Int, count: Int): Task[Seq[BlockHeader]] =
+    Chain[BlockHeader].slice(forkIndex, forkIndex+count)
 }

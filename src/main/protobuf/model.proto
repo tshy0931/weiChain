@@ -47,7 +47,7 @@ message BlockHeaderProto {
     bytes prevHeaderHash = 3;
     bytes merkleRoot = 4;
     int64 time = 5;
-    int64 nBits = 6;
+    int32 height = 6;
     int64 nonce = 7;
 }
 

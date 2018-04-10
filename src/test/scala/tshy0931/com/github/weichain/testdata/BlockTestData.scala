@@ -7,7 +7,7 @@ import tshy0931.com.github.weichain.model.{Block, MerkleTree, Transaction}
 trait BlockTestData { this: TransactionTestData with CommonData =>
 
   def testBlock(hash: Hash = testHash) = Block(
-    header = BlockHeader(hash, 1, testHash, testHash, 1L, 1L, 1L),
+    header = BlockHeader(hash, 1, testHash, testHash, 1L, 1, 1L),
     body = BlockBody(
       hash,
       MerkleTree(Vector.empty[Hash], 0),
