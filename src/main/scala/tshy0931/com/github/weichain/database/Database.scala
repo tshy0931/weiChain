@@ -5,6 +5,7 @@ import shapeless.the
 import tshy0931.com.github.weichain.model.Block.{BlockBody, BlockHeader}
 import tshy0931.com.github.weichain.model.Transaction
 import tshy0931.com.github.weichain.protobuf.Protobufable
+import Identity.Keyspace._
 
 trait Database[A] {
 
@@ -30,7 +31,7 @@ object Database extends Redis {
       exec(_.set(item.key, pb toProtobuf item))
 
     override def find(key: String)(implicit pb: Protobufable[Transaction]): Task[Option[Transaction]] =
-      exec(_.get[Array[Byte]](key)) map { _ map pb.fromProtobuf }
+      exec(_.get[Array[Byte]](s"$TX:$key")) map { _ map pb.fromProtobuf }
 
     override def deleteKeys(keys: String*)(implicit pb: Protobufable[Transaction]): Task[Unit] =
       exec(_.del(keys.head, keys.tail)) map ( _ => () )
@@ -45,7 +46,7 @@ object Database extends Redis {
       exec(_.set(item.key, pb toProtobuf item))
 
     override def find(key: String)(implicit pb: Protobufable[BlockHeader]): Task[Option[BlockHeader]] =
-      exec(_.get[Array[Byte]](key)) map { _ map pb.fromProtobuf }
+      exec(_.get[Array[Byte]](s"$BLOCK_HEADER:$key")) map { _ map pb.fromProtobuf }
 
     override def deleteKeys(keys: String*)(implicit pb: Protobufable[BlockHeader]): Task[Unit] =
       exec(_.del(keys.head, keys.tail)) map ( _ => () )
@@ -60,7 +61,7 @@ object Database extends Redis {
       exec(_.set(item.key, pb toProtobuf item))
 
     override def find(key: String)(implicit pb: Protobufable[BlockBody]): Task[Option[BlockBody]] =
-      exec(_.get[Array[Byte]](key)) map { _ map pb.fromProtobuf }
+      exec(_.get[Array[Byte]](s"$BLOCK_BODY:$key")) map { _ map pb.fromProtobuf }
 
     override def deleteKeys(keys: String*)(implicit pb: Protobufable[BlockBody]): Task[Unit] =
       exec(_.del(keys.head, keys.tail)) map ( _ => () )

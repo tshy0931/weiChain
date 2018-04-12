@@ -14,8 +14,8 @@ message CoinbaseProto {
 
 message OutputProto {
     double value = 1;
-    bytes address = 2;
-    bytes blockHash = 3;
+    string address = 2;
+    string blockHash = 3;
     int32 txIndex = 4;
     int32 outputIndex = 5;
     string scriptPubKey = 6;
@@ -29,7 +29,7 @@ message InputProto {
 }
 
 message TransactionProto {
-    bytes hash = 1;
+    string hash = 1;
     int32 version = 2;
     int32 nTxIn = 3;
     repeated InputProto txIn = 4;
@@ -42,17 +42,17 @@ message TransactionProto {
 }
 
 message BlockHeaderProto {
-    bytes hash = 1;
+    string hash = 1;
     int32 version = 2;
-    bytes prevHeaderHash = 3;
-    bytes merkleRoot = 4;
+    string prevHeaderHash = 3;
+    string merkleRoot = 4;
     int64 time = 5;
     int32 height = 6;
     int64 nonce = 7;
 }
 
 message BlockBodyProto {
-    bytes headerHash = 1;
+    string headerHash = 1;
     MerkleTreeProto merkleTree = 2;
     int32 nTx = 3;
     int64 size = 4;
@@ -60,7 +60,7 @@ message BlockBodyProto {
 }
 
 message MerkleTreeProto {
-    repeated bytes hashes = 1;
+    repeated string hashes = 1;
     int32 nTx = 2;
 }
 

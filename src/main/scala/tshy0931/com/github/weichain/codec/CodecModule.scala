@@ -15,14 +15,14 @@ object CodecModule extends SprayJsonSupport with DefaultJsonProtocol {
 
   lazy val log = Logging(system, this.getClass)
 
-  implicit val byteArrayFormat = new RootJsonFormat[Hash] {
-    override def read(json: JsValue): Hash = json match {
-      case JsString(hash) => hash.getBytes
-      case _ => emptyHash
-    }
-
-    override def write(obj: Hash): JsValue = JsString(obj.asString)
-  }
+//  implicit val byteArrayFormat = new RootJsonFormat[Hash] {
+//    override def read(json: JsValue): Hash = json match {
+//      case JsString(hash) => hash
+//      case _ => emptyHash
+//    }
+//
+//    override def write(hash: Hash): JsValue = JsString(hash)
+//  }
 
   implicit val versionFormat = jsonFormat6(Version)
   implicit val coinbaseFormat = jsonFormat1(Coinbase)

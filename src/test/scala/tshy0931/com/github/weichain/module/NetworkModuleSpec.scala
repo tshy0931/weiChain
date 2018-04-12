@@ -10,8 +10,17 @@ import tshy0931.com.github.weichain.codec.CodecModule._
 import NetworkModule.Routes._
 import akka.http.scaladsl.model._
 import cats.syntax.all._
+import monix.eval.Task
+import tshy0931.com.github.weichain.database.Database
+import tshy0931.com.github.weichain.model.Block.{BlockBody, BlockHeader}
+import org.mockito.Mockito._
+import org.mockito.Matchers._
+import org.scalatest.mockito.MockitoSugar
+import tshy0931.com.github.weichain.testdata.{BlockTestData, CommonData, TransactionTestData}
 
-class NetworkModuleSpec extends FlatSpec with Matchers with ScalatestRouteTest {
+class NetworkModuleSpec extends FlatSpec
+  with Matchers with ScalatestRouteTest with MockitoSugar
+  with BlockTestData with TransactionTestData with CommonData {
 
   behavior of "data API"
 
@@ -43,5 +52,21 @@ class NetworkModuleSpec extends FlatSpec with Matchers with ScalatestRouteTest {
     }
   }
 
+  it should "respond with block header upon a /test/header/:hash request" in {
+    implicit val headerDB: Database[BlockHeader] = mock[Database[BlockHeader]]
+    when(headerDB.find("blkhdr:00b98ad248c8de87e6dcebe0cac0894f7eaa92cbc5e52c6f84a32ebbc58c947b")).thenReturn(Task.now(Some(blk1.header)))
+    Get("/test/header/00b98ad248c8de87e6dcebe0cac0894f7eaa92cbc5e52c6f84a32ebbc58c947b") ~> routes ~> check {
+      val resp = responseAs[BlockHeader]
+      resp.hash shouldBe "00b98ad248c8de87e6dcebe0cac0894f7eaa92cbc5e52c6f84a32ebbc58c947b"
+    }
+  }
 
+  it should "respond with block body upon a /test/block/:hash request" in {
+    implicit val headerDB: Database[BlockBody] = mock[Database[BlockBody]]
+    when(headerDB.find("blkbdy:00b98ad248c8de87e6dcebe0cac0894f7eaa92cbc5e52c6f84a32ebbc58c947b")).thenReturn(Task.now(Some(blk1.body)))
+    Get("/test/block/00b98ad248c8de87e6dcebe0cac0894f7eaa92cbc5e52c6f84a32ebbc58c947b") ~> routes ~> check {
+      val resp = responseAs[BlockBody]
+      resp.headerHash shouldBe "00b98ad248c8de87e6dcebe0cac0894f7eaa92cbc5e52c6f84a32ebbc58c947b"
+    }
+  }
 }

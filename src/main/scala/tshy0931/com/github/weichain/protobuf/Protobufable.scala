@@ -130,11 +130,11 @@ object Protobufable {
 
   val merkleTreeIso = Iso[MerkleTreeProto, MerkleTree]
   { proto => MerkleTree(
-      hashes = proto.hashes map byteStringToByteArray toVector,
+      hashes = proto.hashes toVector,
       nTx = proto.nTx
   )}
   { tree => MerkleTreeProto(
-      hashes = tree.hashes map byteArrayToByteString,
+      hashes = tree.hashes,
       nTx = tree.nTx
   )}
 

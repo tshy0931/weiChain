@@ -10,7 +10,6 @@ import tshy0931.com.github.weichain.model.Block.{BlockBody, BlockHeader}
 import tshy0931.com.github.weichain.testdata.TestApplicationData
 
 import scala.concurrent.duration._
-import scala.util.{Failure, Success}
 
 object TestApplication extends App
   with ValidationModuleFixture
@@ -19,15 +18,14 @@ object TestApplication extends App
   import monix.execution.Scheduler.Implicits.global
   lazy val log = Logging(system, this.getClass)
 
-  val start = (loadTestTx, loadTestBlock) parMapN {
-    (_, _) => NetworkModule.start.onComplete {
-      case Success(_)   => log.info("WeiChain client successfully started.")
-      case Failure(err) => log.error("Failed to start WeiChain, error: {}", err)
+  val start = (BlockChainModule.start, loadTestTx, loadTestBlock) parMapN {
+    (_, _, _) => NetworkModule.start.onErrorHandle { err =>
+      log.error("Failed to start WeiChain, error: {}", err)
     }
-  } runSyncUnsafe(240 seconds)
+  } runSyncUnsafe(60 seconds)
 
   private def loadTestTx: Task[List[Unit]] = Task gatherUnordered {
-    Seq(tx1, tx2) map { tx => MemPool[Transaction].put(tx, tx.createTime)}
+    Seq(validTx1, validTx2) map { tx => MemPool[Transaction].put(tx, tx.createTime)}
   }
 
   private def loadTestBlock: Task[List[Unit]] = Task gatherUnordered {
@@ -38,4 +36,5 @@ object TestApplication extends App
       }
     }
   }
+
 }

@@ -10,7 +10,7 @@ object ApplicationModule extends App {
   import monix.execution.Scheduler.Implicits.global
   lazy val log = Logging(system, this.getClass)
 
-  NetworkModule.start.onComplete {
+  NetworkModule.start.runAsync onComplete {
     case Success(_)   => log.info("WeiChain client successfully started.")
     case Failure(err) => log.error("Failed to start WeiChain, error: {}", err)
   }

@@ -12,7 +12,7 @@ object Script {
 
     def pubKey(pubKey: String) = {
       val pubKeyHash = digest(pubKey)
-      s"OP_DUP OP_HASH160 ${pubKeyHash.asString} OP_EQUALVERIFY OP_CHECKSIG"
+      s"OP_DUP OP_HASH160 $pubKeyHash OP_EQUALVERIFY OP_CHECKSIG"
     }
 
     def sig(secretKey: String, pubKey: String) = {

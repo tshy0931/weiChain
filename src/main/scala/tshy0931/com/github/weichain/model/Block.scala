@@ -72,7 +72,7 @@ object Block {
   }
 
   def applyNonce(headerHash: Hash, nonce: Long): Hash =
-    digest(headerHash ++ BigInt(nonce).toByteArray)
+    digest(headerHash + nonce)
 
   implicit class BlockHeaderOps(header: BlockHeader) {
 

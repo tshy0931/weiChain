@@ -47,7 +47,7 @@ object FilterModule {
 
   implicit val txFunnel: Funnel[Transaction] = (from: Transaction, into: PrimitiveSink) => {
     into
-      .putString(from.hash.asString, Charsets.UTF_8)
+      .putString(from.hash, Charsets.UTF_8)
       .putInt(from.version)
   }
 

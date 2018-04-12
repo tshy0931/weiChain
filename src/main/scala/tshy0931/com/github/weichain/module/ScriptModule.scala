@@ -3,6 +3,7 @@ package tshy0931.com.github.weichain.module
 import cats.data.Validated
 import cats.data.Validated.{Invalid, Valid}
 import cats.syntax.validated._
+import tshy0931.com.github.weichain._
 import tshy0931.com.github.weichain.model.Script.Error
 
 import SignatureModule._
@@ -42,7 +43,7 @@ object ScriptModule {
 
     case "OP_HASH160" =>
       stack.headOption.fold[Validated[Error, String]](Error("No element to HASH160, stack is empty", "OP_HASH160", stack).invalid){ head =>
-        val hash = digest(head.getBytes("UTF-8")).map("%02x".format(_)).mkString
+        val hash = digest(head)
         stack = hash :: stack.tail
         "ok".valid
       }

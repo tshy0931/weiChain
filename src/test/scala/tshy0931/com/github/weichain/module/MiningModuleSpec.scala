@@ -11,15 +11,18 @@ import tshy0931.com.github.weichain.testdata.TestApplicationData
 
 import scala.util.{Failure, Success}
 
-class MiningModuleSpec extends FlatSpec with GivenWhenThen with Matchers with Inside with MiningModuleFixture {
+class MiningModuleSpec extends FlatSpec with Matchers with Inside with MiningModuleFixture {
 
   behavior of "Mining"
 
   it should "find valid nonce when finished mining a block" in {
-    mineWithTransactions(Vector(tx1), genesisBlockHeader) runOnComplete {
+    mineWithTransactions(Vector(validTx1), genesisBlockHeader) runOnComplete {
       case Success(block) =>
-        block.header.hash.asString startsWith difficulty shouldBe true
-        applyNonce(computeHash(genesisHash, merkleTree1.root), block.header.nonce).asString shouldBe block.header.hash.asString
+        block.header.hash startsWith difficulty shouldBe true
+        applyNonce(
+          computeHash(genesisHash, merkleTree1.root),
+          block.header.nonce
+        ) shouldBe block.header.hash
       case Failure(error) => fail(error)
     }
   }

@@ -98,7 +98,7 @@ trait BlockChainModuleFixture extends TableDrivenPropertyChecks with MockitoSuga
   }
 
   private def generateHashesFromNumbers(start: Int, end: Int): Vector[Hash] =
-    (start to end) map { _.toString.getBytes } toVector
+    (start to end) map { _.toString } toVector
 
   def generateBlockHeadersFromNumbers(start: Int, end: Int): Vector[BlockHeader] =
     generateHashesFromNumbers(start, end) map { hash => BlockHeader(hash, 1, hash, hash, 1L, 1, 1L) }

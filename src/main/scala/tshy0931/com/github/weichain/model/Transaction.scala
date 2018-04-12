@@ -40,16 +40,16 @@ import tshy0931.com.github.weichain.module.DigestModule._
 
     00000000 ................................... locktime: 0 (a block height)
   */
-case class Transaction(hash: Hash,
+case class Transaction(hash: Hash = emptyHash,
                        version: Int,
                        nTxIn: Int,
                        txIn: Vector[Input],
                        nTxOut: Int,
                        txOut: Vector[Output],
-                       lockTime: Int,
-                       blockIndex: Long,
-                       txFee: Double,
-                       createTime: Long)
+                       lockTime: Int = 0,
+                       blockIndex: Long = -1,
+                       txFee: Double = 0.0,
+                       createTime: Long = System.currentTimeMillis)
 
 object Transaction {
 
@@ -59,8 +59,8 @@ object Transaction {
 
   case class Output(value: Double,
                     address: Hash,
-                    blockHash: Hash,
-                    txIndex: Int,
+                    blockHash: Hash = emptyHash,
+                    txIndex: Int = -1,
                     outputIndex: Int,
                     scriptPubKey: String,
                     coinbase: Option[Coinbase] = None)
@@ -84,8 +84,8 @@ object Transaction {
     def updated: Transaction = {
       val hash = digest(digest(s"""${tx.createTime}
                        |${tx.lockTime}
-                       |${tx.txOut map {outputHash(_).asString} mkString}
-                       |${tx.txIn map {inputHash(_).asString} mkString}
+                       |${tx.txOut map outputHash mkString}
+                       |${tx.txIn map inputHash mkString}
                        |""".stripMargin))
       hashLens.set(hash)(tx)
     }

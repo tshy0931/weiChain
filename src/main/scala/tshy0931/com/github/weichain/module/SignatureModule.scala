@@ -10,10 +10,10 @@ object SignatureModule {
 
   def sign(secretKey: String, document: String): String = {
     s"sig_of_$document"
-    //      val spec = new PKCS8EncodedKeySpec(secretKey.getBytes("UTF-8"))
+    //      val spec = new PKCS8EncodedKeySpec(secretKey.toHash)
     //      val key = KeyFactory.getInstance("RSA").generatePrivate(spec)
     //      signature.initSign(key)
-    //      signature.update(document.getBytes("UTF-8"))
-    //      signature.sign.map("%02x".format(_)).mkString
+    //      signature.update(document.toHash)
+    //      signature.sign
   }
 }

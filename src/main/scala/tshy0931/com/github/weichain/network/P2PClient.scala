@@ -55,10 +55,8 @@ class P2PClient extends Actor with ActorLogging {
 
     case Mine(prevBlockHeader) =>
       mine(prevBlockHeader) flatMap { block =>
-        MemPool[Address].getAll map {
-          _ foreach { peer =>
-            request[Block](block, peer.asUri(DOMAIN_DATA, BLOCK)) { BroadcastResponse(block, peer, _) }
-          }
+        (Database[BlockHeader].save(block.header), Database[BlockBody].save(block.body), broadcast(block)) parMapN {
+          (headerSaved, bodySaved, _) => log.info("block {} mined, saved and broadcasted", block)
         }
       } runAsync
 
@@ -129,5 +127,13 @@ class P2PClient extends Actor with ActorLogging {
         http.singleRequest(HttpRequest(POST, uri = endpoint, entity = reqBody))
       }
     ) map (a => self ! envelope(a)) runAsync
+  }
+
+  private[this] def broadcast(block: Block): Task[Unit] = {
+    MemPool[Address].getAll map {
+      _ foreach { peer =>
+        request[Block](block, peer.asUri(DOMAIN_DATA, BLOCK)) { BroadcastResponse(block, peer, _) }
+      }
+    }
   }
 }

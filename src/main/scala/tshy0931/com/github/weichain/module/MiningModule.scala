@@ -2,9 +2,8 @@ package tshy0931.com.github.weichain.module
 
 import tshy0931.com.github.weichain._
 import tshy0931.com.github.weichain.model.Block._
-import monix.eval.{Coeval, Task}
+import monix.eval.Task
 import tshy0931.com.github.weichain.model.Transaction._
-import BlockChainModule.genesisHash
 import tshy0931.com.github.weichain.model.{Block, MerkleTree, Transaction}
 import ConfigurationModule.version
 
@@ -25,6 +24,7 @@ object MiningModule {
     for {
       txs   <- selectTransactions
       block <- mineWithTransactions(txs, prevBlockHeader)
+      _     <- removeTransactionsFromMempool(block.body.transactions)
     } yield block
   }
 
@@ -51,7 +51,7 @@ object MiningModule {
     val merkleTree = MerkleTree.build(transactions)
     val unnoncedHeaderHash = computeHash(prevHeaderHash, merkleTree.root)
     var nonce: Int = 0
-    var resultHash: Hash = Array.emptyByteArray
+    var resultHash: Hash = emptyHash
 
     do {
       nonce += 1
@@ -98,6 +98,8 @@ object MiningModule {
     }
 
   private[this] def verify(nonce: Int, hash: Hash, difficulty: String): Boolean =
-    hash.asString startsWith difficulty
+    hash startsWith difficulty
 
+  private[this] def removeTransactionsFromMempool(txs: Seq[Transaction]) =
+    Task.gatherUnordered( txs map { MemPool[Transaction].delete } )
 }

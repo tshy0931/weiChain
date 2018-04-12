@@ -14,21 +14,21 @@ import tshy0931.com.github.weichain._
 import DigestModule._
 import BlockChainModule._
 import FilterModule._
-import MiningModule._
 import ValidationModule.TransactionValidation._
 import tshy0931.com.github.weichain.message._
-import tshy0931.com.github.weichain.model.Block.BlockHeader
+import tshy0931.com.github.weichain.model.Block.{BlockBody, BlockHeader}
 import ConfigurationModule._
 import ValidationModule.BlockBodyValidation._
 import akka.pattern.CircuitBreaker
+import cats.data.Validated
 import cats.data.Validated.{Invalid, Valid}
 import cats.syntax.all._
-import monix.eval.{Coeval, Task}
-import monix.execution.CancelableFuture
+import monix.eval.Task
 import tshy0931.com.github.weichain.codec.CodecModule._
-import tshy0931.com.github.weichain.database.MemPool
+import tshy0931.com.github.weichain.database.{Database, MemPool}
 import tshy0931.com.github.weichain.model.{Address, Block, Transaction}
 import tshy0931.com.github.weichain.network.P2PClient
+import tshy0931.com.github.weichain.network.P2PClient.Mine
 
 import scala.concurrent.Future
 import scala.util.{Failure, Random, Success}
@@ -56,17 +56,17 @@ object NetworkModule {
     resetTimeout = 1 seconds
   )
 
-  val client: Coeval[ActorRef] = Coeval.evalOnce(system.actorOf(P2PClient.props))
+  val client: ActorRef = system.actorOf(P2PClient.props)
 
   var networkBinding: Http.ServerBinding = _
 
-  def start: CancelableFuture[Unit] = {
+  def start: Task[Unit] = {
     (loadSeedPeers, Task fromFuture bind(hostName, port)) parMapN {
       (_, binding) => networkBinding = binding
     } recover {
       case err => log.error("Failed binding to host {} port {}, error {}", hostName, port, err)
     }
-  } runAsync
+  }
 
   private def loadSeedPeers: Task[List[Unit]] = Task.gatherUnordered {
     seeds map { MemPool[Address].put(_, System.currentTimeMillis) }
@@ -87,7 +87,7 @@ object NetworkModule {
           decodeRequest {
             entity(as[Block]) { block =>
               onCompleteWithBreaker(circuitBreaker)(verifyBlockBody(block.body) runAsync) {
-                case Success(Valid(blockBody)) => complete(OK -> s"block with hash ${blockBody.headerHash.asString} is received")
+                case Success(Valid(blockBody)) => complete(OK -> s"block with hash ${blockBody.headerHash} is received")
                 case Success(Invalid(error))   => complete(BadRequest -> s"invalid block body, error: $error")
                 case Failure(err)              => complete(InternalServerError -> err)
               }
@@ -97,8 +97,8 @@ object NetworkModule {
       } ~
       path( DOMAIN_DATA / BLOCK / REGEX_HASH ) { blockHash =>
         get {
-          val findBlock: CancelableFuture[Option[Block]] = blockWithHash(blockHash).value.runAsync
-          onCompleteWithBreaker(circuitBreaker)(findBlock) {
+          val findBlock: Task[Option[Block]] = blockWithHash(blockHash).value
+          onCompleteWithBreaker(circuitBreaker)(findBlock runAsync) {
             case Success(Some(block)) => complete(OK -> block)
             case Success(None)        => complete(NotFound -> s"no block with hash $blockHash")
             case Failure(err)         => complete(InternalServerError -> err)
@@ -110,7 +110,7 @@ object NetworkModule {
           decodeRequest {
             entity(as[Blocks]) { blocks =>
               val tasks: Vector[Task[Option[Block]]] = blocks.blockHashes map { hash =>
-                blockWithHash(hash.asString).value
+                blockWithHash(hash).value
               }
               onCompleteWithBreaker(circuitBreaker)(Task.sequence(tasks).runAsync) {
                 case Success(blocks) => complete(OK -> blocks)
@@ -157,7 +157,7 @@ object NetworkModule {
           }
         }
       } ~
-      path( DOMAIN_DATA / BLOCK / REGEX_HASH / REGEX_HASH / MERKLEBLOCK ) { (blockHash, txHash) =>
+      path( DOMAIN_DATA / BLOCK / REGEX_HASH / TX / REGEX_HASH / MERKLEBLOCK ) { (blockHash, txHash) =>
         get {
           val task: Task[Option[MerkleBlock]] = merkleBlockOf(blockHash, txHash).value
           onCompleteWithBreaker(circuitBreaker)(task.runAsync) {
@@ -171,9 +171,13 @@ object NetworkModule {
         post {
           decodeRequest {
             entity(as[Transaction]) { tx =>
-              onCompleteWithBreaker(circuitBreaker)(verifyTx(tx).runAsync) {
+              val verifyThenCache = verifyTx(tx) flatMap {
+                case valid @ Valid(tx) =>
+                  MemPool[Transaction].put(tx, tx.createTime) map { _ => valid }
+                case invalid @ Invalid(_) => Task.now(invalid)
+              }
+              onCompleteWithBreaker(circuitBreaker)(verifyThenCache runAsync) {
                 case Success(Valid(tx))    =>
-                  MemPool[Transaction].put(tx, tx.createTime)
                   complete(OK -> s"transaction ${tx.hash} is validated and received.")
                 case Success(Invalid(err)) => complete(BadRequest -> err)
                 case Failure(err)          => complete(InternalServerError -> err)
@@ -185,14 +189,6 @@ object NetworkModule {
     }
 
     lazy val controlRoute: Route = {
-      path( DOMAIN_CTRL / "mine" ) {
-        get {
-          onCompleteWithBreaker(circuitBreaker)(latestHeader flatMap mine runAsync) {
-            case Success(blk) => complete(OK -> blk)
-            case Failure(err)   => complete(InternalServerError -> err)
-          }
-        }
-      } ~
       path( DOMAIN_CTRL / ADDRESS ) {
         get {
           val peers = MemPool[Address].getAll
@@ -296,8 +292,7 @@ object NetworkModule {
         post {
           val header = MessageHeader(
             commandName = "version",
-            payloadSize = 0L,
-            checksum = digest(digest(emptyHash)).asString
+            checksum = digest(digest(emptyHash))
           )
           complete(header)
         }
@@ -320,7 +315,36 @@ object NetworkModule {
       }
     }
 
-    lazy val routes: Route = dataRoute ~ controlRoute
+    lazy val testRoute: Route = {
+      path("test" / "mine" ) {
+        get {
+          onCompleteWithBreaker(circuitBreaker)(latestHeader map { header => client ! Mine(header)} runAsync) {
+            case Success(blk) => complete(OK)
+            case Failure(err) => complete(InternalServerError -> err)
+          }
+        }
+      } ~
+      path("test" / "block" / REGEX_HASH ) { blockHash =>
+        get {
+          onCompleteWithBreaker(circuitBreaker)(Database[BlockBody].find(blockHash) runAsync) {
+            case Success(Some(msg)) => complete(OK -> msg)
+            case Success(None) => complete(NotFound -> "no such block")
+            case Failure(err) => complete(InternalServerError -> err)
+          }
+        }
+      } ~
+      path("test" / "header" / REGEX_HASH ) { blockHash =>
+        get {
+          onCompleteWithBreaker(circuitBreaker)(Database[BlockHeader].find(blockHash) runAsync) {
+            case Success(Some(msg)) => complete(OK -> msg)
+            case Success(None) => complete(NotFound -> "no such block")
+            case Failure(err) => complete(InternalServerError -> err)
+          }
+        }
+      }
+    }
+
+    lazy val routes: Route = dataRoute ~ controlRoute ~ testRoute
   }
 
   implicit class remoteAddressOps(remoteAddress: RemoteAddress) {

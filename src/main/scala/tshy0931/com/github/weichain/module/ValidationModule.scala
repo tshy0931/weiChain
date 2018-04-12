@@ -32,8 +32,8 @@ object ValidationModule {
       * And the hash value should suffice the difficulty at block creation time.
       */
     def isValidHash: Validation[BlockHeader] = header => Task {
-      val hashString = header.computeNoncedHash.asString
-      if (hashString == header.hash.asString && isValidProofOfWork(hashString)) header.valid
+      val hashString = header.computeNoncedHash
+      if (hashString == header.hash && isValidProofOfWork(hashString)) header.valid
       else ValidationError("invalid header hash", header).invalid
     }
 
@@ -42,7 +42,7 @@ object ValidationModule {
       */
     def isValidLink(prevHeader: BlockHeader, currHeader: BlockHeader): Task[Validated[ValidationError[BlockHeader], BlockHeader]] =
       Task.eval {
-        if(prevHeader.computeNoncedHash.asString == currHeader.prevHeaderHash.asString) currHeader.valid
+        if(prevHeader.computeNoncedHash == currHeader.prevHeaderHash) currHeader.valid
         else ValidationError("prevBlockHash doesn't match with previous block", currHeader).invalid
       }
 
@@ -77,7 +77,7 @@ object ValidationModule {
 
     def hasValidMerkleRoot: BlockBodyValidation = body => Task {
       val merkleTree = MerkleTree.build(body.transactions)
-      if(merkleTree.root.asString == body.merkleTree.root.asString) {
+      if(merkleTree.root == body.merkleTree.root) {
         body.valid
       } else {
         ValidationError[BlockBody]("invalid merkle root", body).invalid
@@ -103,11 +103,11 @@ object ValidationModule {
 
       val allSourcesValid: Vector[Task[Boolean]] = tx.txIn map { in =>
         for {
-          srcBlock <- blockWithHash(in.source.blockHash.asString).value
+          srcBlock <- blockWithHash(in.source.blockHash).value
           srcTx <- Task.now { srcBlock map (_.body.transactions(in.source.txIndex)) }
           srcOut <- Task.now { srcTx map {_.txOut(in.source.outputIndex)} }
         } yield srcOut.exists(out => (out.address sameElements in.source.address) && out.value == in.source.value)
-//        val srcBlock: Option[Block] = blockWithHash(in.source.blockHash.asString).value
+//        val srcBlock: Option[Block] = blockWithHash(in.source.blockHash).value
 //        val srcTx: Option[Transaction] = srcBlock map (_.body.transactions(in.source.txIndex))
 //        val srcOutput: Option[Transaction.Output] = srcTx map (_.txOut(in.source.outputIndex))
 //

@@ -19,7 +19,7 @@ object BlockChainModule {
 
   import monix.execution.Scheduler.Implicits.global
 
-  val genesisHash: Hash = digest("tshy0931")
+  val genesisHash: Hash = digest("tshy0931") // 3147a5ca5ca35cbee1249030b7a5c92efd5cece51ed14ce5cd6fe41eb4021a96
   val genesisTime: Long = 1211976000000L
   val genesisBlockHeader: BlockHeader = BlockHeader(
     hash = genesisHash,
@@ -40,7 +40,7 @@ object BlockChainModule {
   def latestHeader: Task[BlockHeader] = Chain[BlockHeader].last(1) map { _.head }
   def latestBlock: Task[Block] = for {
     header <- latestHeader
-    block  <- blockWithHash(header.hash.asString) getOrElse genesisBlock
+    block  <- blockWithHash(header.hash) getOrElse genesisBlock
   } yield block
 
   // TODO maintain an index or bloomfilter to find in which block a given tx is
@@ -92,4 +92,8 @@ object BlockChainModule {
 
   private[this] def headersAfterFork(forkIndex: Int, count: Int): Task[Seq[BlockHeader]] =
     Chain[BlockHeader].slice(forkIndex, forkIndex+count)
+
+  def start: Task[Unit] =
+    // store genesis block header to header chain
+    Chain[BlockHeader].update(Seq(genesisBlockHeader), genesisBlockHeader.height)
 }

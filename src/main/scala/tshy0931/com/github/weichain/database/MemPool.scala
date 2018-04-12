@@ -1,6 +1,5 @@
 package tshy0931.com.github.weichain.database
 
-import tshy0931.com.github.weichain._
 import com.redis.RedisClient.{ASC, DESC}
 import shapeless.the
 import tshy0931.com.github.weichain.model.{Address, Transaction}
@@ -47,7 +46,7 @@ object MemPool extends Redis {
       exec { _.zadd(name, tx.score, encode(tx)) }
 
     override def delete(tx: Transaction): Task[Unit] =
-      exec { _.zrem(name, encode(tx)) }
+      exec { _.zremrangebyscore(name, start = tx.score, end = tx.score) }
 
     override def deleteItemsBefore(score: Long): Task[Unit] =
       exec { _.zremrangebyscore(name, end = score) }

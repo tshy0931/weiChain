@@ -3,6 +3,10 @@ package tshy0931.com.github.weichain.testdata
 import tshy0931.com.github.weichain.Hash
 import tshy0931.com.github.weichain.model.Block.{BlockBody, BlockHeader}
 import tshy0931.com.github.weichain.model.{Block, MerkleTree, Transaction}
+import tshy0931.com.github.weichain.module.BlockChainModule.genesisBlockHeader
+import tshy0931.com.github.weichain.module.MiningModule.mineWithTransactions
+import scala.concurrent.duration._
+import monix.execution.Scheduler.Implicits.global
 
 trait BlockTestData { this: TransactionTestData with CommonData =>
 
@@ -20,4 +24,7 @@ trait BlockTestData { this: TransactionTestData with CommonData =>
       )
     )
   )
+
+  lazy val blk1 = mineWithTransactions(Vector(validTx1), genesisBlockHeader) runSyncUnsafe(120 seconds)
+  lazy val blk2 = mineWithTransactions(Vector(validTx2), genesisBlockHeader) runSyncUnsafe(120 seconds)
 }

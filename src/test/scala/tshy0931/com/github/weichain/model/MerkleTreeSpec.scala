@@ -22,21 +22,21 @@ class MerkleTreeSpec extends FlatSpec with GivenWhenThen with Matchers with Insi
 
     testMerkleTree.hashes.size shouldBe 14
 
-    hashedTx(0).asString shouldBe testMerkleTree.hashAt(7).asString
-    hashedTx(1).asString shouldBe testMerkleTree.hashAt(8).asString
-    hashedTx(2).asString shouldBe testMerkleTree.hashAt(9).asString
-    hashedTx(3).asString shouldBe testMerkleTree.hashAt(10).asString
-    hashedTx(4).asString shouldBe testMerkleTree.hashAt(11).asString
-    hashedTx(5).asString shouldBe testMerkleTree.hashAt(12).asString
-    hashedTx(6).asString shouldBe testMerkleTree.hashAt(13).asString
+    hashedTx(0) shouldBe testMerkleTree.hashAt(7)
+    hashedTx(1) shouldBe testMerkleTree.hashAt(8)
+    hashedTx(2) shouldBe testMerkleTree.hashAt(9)
+    hashedTx(3) shouldBe testMerkleTree.hashAt(10)
+    hashedTx(4) shouldBe testMerkleTree.hashAt(11)
+    hashedTx(5) shouldBe testMerkleTree.hashAt(12)
+    hashedTx(6) shouldBe testMerkleTree.hashAt(13)
 
-    testMerkleTree.hashAt(3).asString shouldBe merge(testMerkleTree.hashAt(7), testMerkleTree.hashAt(8)).asString
-    testMerkleTree.hashAt(4).asString shouldBe merge(testMerkleTree.hashAt(9), testMerkleTree.hashAt(10)).asString
-    testMerkleTree.hashAt(5).asString shouldBe merge(testMerkleTree.hashAt(11), testMerkleTree.hashAt(12)).asString
-    testMerkleTree.hashAt(6).asString shouldBe merge(testMerkleTree.hashAt(13), testMerkleTree.hashAt(13)).asString
+    testMerkleTree.hashAt(3) shouldBe merge(testMerkleTree.hashAt(7), testMerkleTree.hashAt(8))
+    testMerkleTree.hashAt(4) shouldBe merge(testMerkleTree.hashAt(9), testMerkleTree.hashAt(10))
+    testMerkleTree.hashAt(5) shouldBe merge(testMerkleTree.hashAt(11), testMerkleTree.hashAt(12))
+    testMerkleTree.hashAt(6) shouldBe merge(testMerkleTree.hashAt(13), testMerkleTree.hashAt(13))
 
-    testMerkleTree.hashAt(0).asString shouldBe merge(testMerkleTree.hashAt(1), testMerkleTree.hashAt(2)).asString
-    testMerkleTree.hashAt(1).asString shouldBe merge(testMerkleTree.hashAt(3), testMerkleTree.hashAt(4)).asString
+    testMerkleTree.hashAt(0) shouldBe merge(testMerkleTree.hashAt(1), testMerkleTree.hashAt(2))
+    testMerkleTree.hashAt(1) shouldBe merge(testMerkleTree.hashAt(3), testMerkleTree.hashAt(4))
   }
 
   it should "always generate the same hash for the same document" in {
@@ -44,14 +44,14 @@ class MerkleTreeSpec extends FlatSpec with GivenWhenThen with Matchers with Insi
     val tree1 = MerkleTree.build(testTransactions)
     val tree2 = MerkleTree.build(testTransactions)
 
-    tree1.hashes.map(_.asString) shouldBe tree2.hashes.map(_.asString)
+    tree1.hashes shouldBe tree2.hashes
   }
 
   it should "corretly derive path from merkle root to a given transaction if it exists in this merkle tree" in {
 
     forAll(testPaths) { (index, expectedPath) =>
       val target = testTransactions(index).hash
-      val task: Task[Option[List[Int]]] = testMerkleTree.derivePath(digest(target).asString).value
+      val task: Task[Option[List[Int]]] = testMerkleTree.derivePath(digest(target)).value
       task runOnComplete {
         case Success(path) => path should contain(expectedPath)
         case Failure(err)  => fail(err)
@@ -61,7 +61,7 @@ class MerkleTreeSpec extends FlatSpec with GivenWhenThen with Matchers with Insi
 
   it should "return None as path when the transaction doesn't exist in the merkle tree" in {
 
-    testMerkleTree.derivePath(digest("no such tx").asString).value.runOnComplete {
+    testMerkleTree.derivePath(digest("no such tx")).value.runOnComplete {
       case Success(path) => path shouldBe None
       case Failure(err)  => fail(err)
     }
@@ -72,15 +72,15 @@ class MerkleTreeSpec extends FlatSpec with GivenWhenThen with Matchers with Insi
     forAll(testFlagsAndHashes) { (txId, flags, hashIndices) =>
 
       val result: Task[Option[MerkleBlock]] =
-        testMerkleTree.deriveMerkleBlockFor(digest(testTransactions(txId).hash).asString)(testBlockHeader, 0L).value
+        testMerkleTree.deriveMerkleBlockFor(digest(testTransactions(txId).hash))(testBlockHeader, 0L).value
 
-      val hashes: Vector[String] = hashIndices map testMerkleTree.hashAt map (_.asString)
+      val hashes: Vector[String] = hashIndices map testMerkleTree.hashAt
 
       result runOnComplete {
         case Success(merkleBlock) => inside(merkleBlock) {
           case Some(MerkleBlock(_, _, hs, fs)) =>
             fs shouldBe flags
-            (hs map {_.asString}) shouldBe hashes
+            hs shouldBe hashes
           }
         case Failure(err)  => fail(err)
       }
@@ -144,5 +144,5 @@ trait MerkleTreeFixture extends TableDrivenPropertyChecks with TransactionTestDa
     (6, Vector(1,0,1,0,1,1),   Vector(1,5,13))
   )
 
-  val testBlockHeader = BlockHeader(Array.emptyByteArray, 0, Array.emptyByteArray, Array.emptyByteArray, 0L, 0, 0L)
+  val testBlockHeader = BlockHeader(emptyHash, 0, emptyHash, emptyHash, 0L, 0, 0L)
 }

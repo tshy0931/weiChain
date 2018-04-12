@@ -6,8 +6,8 @@ object Address {
 
   implicit class AddressOps(address: Address) {
 
-    def asString: String = s"${address.host}:${address.port}"
-    def asUri(path: String*): String = path mkString (asString, "/", "")
+    def toUTF8String: String = s"${address.host}:${address.port}"
+    def asUri(path: String*): String = path mkString (toUTF8String, "/", "")
   }
 }
 
