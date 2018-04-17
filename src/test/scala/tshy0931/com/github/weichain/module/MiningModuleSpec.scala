@@ -16,7 +16,7 @@ class MiningModuleSpec extends FlatSpec with Matchers with Inside with MiningMod
   behavior of "Mining"
 
   it should "find valid nonce when finished mining a block" in {
-    mineWithTransactions(Vector(validTx1), genesisBlockHeader) runOnComplete {
+    mineWithTransactions(Vector(validTx1), genesisBlockHeader)("","","") runOnComplete {
       case Success(block) =>
         block.header.hash startsWith difficulty shouldBe true
         applyNonce(

@@ -5,6 +5,7 @@ import monix.eval.Coeval
 import monix.execution.Scheduler
 import monix.execution.schedulers.SchedulerService
 import tshy0931.com.github.weichain.model.Address
+import scala.concurrent.duration._
 
 object ConfigurationModule {
 
@@ -32,4 +33,9 @@ object ConfigurationModule {
   val SCHEDULER_FOR_BLOCK_DOWNLOAD: String = "block-download-scheduler"
   val blockDownloadScheduler: Coeval[SchedulerService] =
     Coeval.evalOnce(Scheduler.io(name = SCHEDULER_FOR_BLOCK_DOWNLOAD))
+
+  val miningRate = 30 seconds
+  val rewardAddr = config.getString("mine.rewardAddr")
+  val minerPubKeyScript = config.getString("mine.pubKeyScript")
+  val minerCoinbaseScript = config.getString("mine.coinbaseScript")
 }

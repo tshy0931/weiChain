@@ -25,6 +25,6 @@ trait BlockTestData { this: TransactionTestData with CommonData =>
     )
   )
 
-  lazy val blk1 = mineWithTransactions(Vector(validTx1), genesisBlockHeader) runSyncUnsafe(120 seconds)
-  lazy val blk2 = mineWithTransactions(Vector(validTx2), genesisBlockHeader) runSyncUnsafe(120 seconds)
+  lazy val blk1 = mineWithTransactions(Vector(validTx1), genesisBlockHeader)("","","") runSyncUnsafe(120 seconds)
+  lazy val blk2 = mineWithTransactions(Vector(validTx2), genesisBlockHeader)("","","") runSyncUnsafe(120 seconds)
 }

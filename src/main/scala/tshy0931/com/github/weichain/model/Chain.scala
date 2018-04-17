@@ -11,6 +11,7 @@ import tshy0931.com.github.weichain.protobuf.Protobufable
 trait Chain[A] {
 
   def name: String
+  def append(item: A, prev: A)(implicit pb: Protobufable[BlockHeader]): Task[Unit]
   def update(items: Seq[BlockHeader], from: Int)(implicit pb: Protobufable[BlockHeader]): Task[Unit]
   def at(index: Int)(implicit pb: Protobufable[BlockHeader]): Task[Option[A]]
   def last(count: Int)(implicit pb: Protobufable[BlockHeader]): Task[Seq[A]]
@@ -31,8 +32,11 @@ object Chain extends Redis {
 
     override def name: String = "hc"
 
+    override def append(item: BlockHeader, prev: BlockHeader)(implicit pb: Protobufable[BlockHeader]): Task[Unit] =
+      exec{ _.zadd(name, prev.height+1, pb toProtobuf item) }
+
     override def update(items: Seq[BlockHeader], from: Int)(implicit pb: Protobufable[BlockHeader]): Task[Unit] =
-      Task.gather( items map { item => exec{ _.zadd(name, item.height, pb.toProtobuf(item))} }) map { _ => ()} onErrorRecover {
+      Task.gather( items map { item => exec{ _.zadd(name, item.height, pb toProtobuf item)} }) map { _ => ()} onErrorRecover {
         case err =>
           log.error("Failed to update block headers from {} on header chain, headers: {}, error: {}", from, items, err)
       }

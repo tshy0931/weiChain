@@ -1,7 +1,7 @@
 package tshy0931.com.github.weichain.network
 
 import cats.syntax.all._
-import akka.actor.{Actor, ActorLogging, ActorSystem, Props}
+import akka.actor.{Actor, ActorLogging, ActorSystem, Props, Scheduler}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.unmarshalling.{FromEntityUnmarshaller, Unmarshal}
@@ -26,7 +26,7 @@ import tshy0931.com.github.weichain._
 import tshy0931.com.github.weichain.database.{Database, MemPool}
 import tshy0931.com.github.weichain.message._
 import tshy0931.com.github.weichain.model.Block.{BlockBody, BlockHeader}
-import tshy0931.com.github.weichain.model.{Address, Block, Chain, Transaction}
+import tshy0931.com.github.weichain.model.{Address, Block, Chain}
 import tshy0931.com.github.weichain.network.P2PClient.Mine
 import tshy0931.com.github.weichain.network.Protocol.{BroadcastResponse, EndpointResponse, HeadersResponse, ResponseEnvelope}
 
@@ -36,7 +36,10 @@ object P2PClient {
 
   def props = Props[P2PClient]
 
-  case class Mine(prevBlockHeader: BlockHeader)
+  case class Mine(prevBlockHeader: BlockHeader,
+                  rewardAddr: Hash,
+                  pubKeyScript: String,
+                  coinbaseScript: String)
 }
 
 class P2PClient extends Actor with ActorLogging {
@@ -47,14 +50,28 @@ class P2PClient extends Actor with ActorLogging {
 
   implicit val system: ActorSystem = ActorSystem()
   implicit val materializer: ActorMaterializer = ActorMaterializer()
-  import monix.execution.Scheduler.Implicits.global
+  implicit val scheduler: Scheduler = system.scheduler
 
   val http = Http(context.system)
 
+  override def preStart(): Unit = {
+    log.info("starting P2P Client")
+    scheduler.schedule(miningRate, miningRate){
+      latestHeader map { self ! Mine(_, rewardAddr, minerPubKeyScript, minerCoinbaseScript) } runAsync
+    }
+    super.preStart()
+  }
+
+  override def postStop(): Unit = {
+    log.info("stopping P2P Client")
+    super.postStop()
+  }
+
   override def receive: Receive = {
 
-    case Mine(prevBlockHeader) =>
-      mine(prevBlockHeader) flatMap { block =>
+    case Mine(prevBlockHeader, rewardAddr, minerPubKeyScript, minerCoinbaseScript) =>
+      log.info("start mining block after header {}", prevBlockHeader.hash)
+      mine(prevBlockHeader)(rewardAddr, minerPubKeyScript, minerCoinbaseScript) flatMap { block =>
         (Database[BlockHeader].save(block.header), Database[BlockBody].save(block.body), broadcast(block)) parMapN {
           (headerSaved, bodySaved, _) => log.info("block {} mined, saved and broadcasted", block)
         }
@@ -75,12 +92,14 @@ class P2PClient extends Actor with ActorLogging {
         if (remoteVersion.version > version) {
           log.warning("local version is not latest, remote version {}, local versoin {}", remoteVersion.version, version)
         }
+        log.debug("received version response {}, sending verack to {}:{}", remoteVersion, peer.host, peer.port)
         request[MessageHeader](MessageHeader(), peer.asUri(DOMAIN_CTRL, VERACK)) { EndpointResponse(VERACK, peer, _) }
       }
 
     case EndpointResponse(VERACK, peer, HttpResponse(StatusCodes.OK, _, entity, _)) =>
       // TODO: start IBD, use headers-first style
       entity.discardBytes(materializer)
+      log.debug("received verack response from {}:{}, sending verack back", peer.host, peer.port)
       request[MessageHeader](MessageHeader(), peer.asUri(DOMAIN_CTRL, HEADERS)) { EndpointResponse(VERACK, peer, _) }
 
     case HeadersResponse(headersSentInRequest, peer, HttpResponse(StatusCodes.OK, _, entity, _)) =>
@@ -88,6 +107,7 @@ class P2PClient extends Actor with ActorLogging {
       parse[Headers](entity) { case Headers(count, forkIndex, headers) =>
         Task {
           // TODO: How to trigger async block downloads?
+          // TODO: Schedule mining after IBD is done
           val lastConfirmedHeader: BlockHeader = if(forkIndex == 0) {
             genesisBlock.header
           } else {

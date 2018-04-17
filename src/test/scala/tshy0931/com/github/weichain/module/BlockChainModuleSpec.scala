@@ -73,6 +73,11 @@ trait BlockChainModuleFixture extends TableDrivenPropertyChecks with MockitoSuga
 
     override def name: String = "testHeaderChain"
 
+    override def append(item: BlockHeader, prev: BlockHeader)(implicit pb: Protobufable[BlockHeader]): Task[Unit] =
+      Task.now {
+        chain = chain :+ item
+      }
+
     override def update(items: Seq[BlockHeader], from: Int)(implicit pb: Protobufable[BlockHeader]): Task[Unit] =
       Task.now {
         val vec = items.toVector

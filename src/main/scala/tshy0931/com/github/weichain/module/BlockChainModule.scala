@@ -30,7 +30,8 @@ object BlockChainModule {
     height = 0
   )
 
-  val genesisBlock: Block = mineWithTransactions(Vector.empty, genesisBlockHeader) runSyncUnsafe(60 seconds)
+  val genesisBlock: Block =
+    mineWithTransactions(Vector.empty, genesisBlockHeader)(rewardAddr, minerPubKeyScript, minerCoinbaseScript) runSyncUnsafe(60 seconds)
 
   def chainHeight: Task[Long] = Chain[BlockHeader].size
 

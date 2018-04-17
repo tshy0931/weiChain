@@ -318,8 +318,10 @@ object NetworkModule {
     lazy val testRoute: Route = {
       path("test" / "mine" ) {
         get {
-          onCompleteWithBreaker(circuitBreaker)(latestHeader map { header => client ! Mine(header)} runAsync) {
-            case Success(blk) => complete(OK)
+          onCompleteWithBreaker(circuitBreaker)(latestHeader map { header =>
+            client ! Mine(header, rewardAddr, minerPubKeyScript, minerCoinbaseScript)
+          } runAsync) {
+            case Success(_)   => complete(OK)
             case Failure(err) => complete(InternalServerError -> err)
           }
         }
@@ -350,7 +352,7 @@ object NetworkModule {
   implicit class remoteAddressOps(remoteAddress: RemoteAddress) {
 
     def toAddress: Address = {
-      remoteAddress.toOption map { addr => Address(addr.getHostName, remoteAddress.getPort) } get
+      remoteAddress.toOption map { addr => Address(addr.getHostName, remoteAddress.getPort) } getOrElse Address("localhost", 8334)
     }
   }
 }

@@ -5,6 +5,7 @@ import monocle.function.all._
 import monocle.{Lens, Traversal}
 import monocle.macros.GenLens
 import tshy0931.com.github.weichain._
+import tshy0931.com.github.weichain.module.ConfigurationModule.version
 import tshy0931.com.github.weichain.module.DigestModule._
 
 /** Example: https://bitcoin.org/en/developer-reference#raw-transaction-format
@@ -41,7 +42,7 @@ import tshy0931.com.github.weichain.module.DigestModule._
     00000000 ................................... locktime: 0 (a block height)
   */
 case class Transaction(hash: Hash = emptyHash,
-                       version: Int,
+                       version: Int = version,
                        nTxIn: Int,
                        txIn: Vector[Input],
                        nTxOut: Int,
@@ -64,6 +65,36 @@ object Transaction {
                     outputIndex: Int,
                     scriptPubKey: String,
                     coinbase: Option[Coinbase] = None)
+  object Output {
+    implicit val outputOrdering = new Ordering[Output] {
+      override def compare(x: Output, y: Output): Int = {
+        if(
+          x.blockHash == y.blockHash &&
+          x.outputIndex == y.outputIndex &&
+          x.txIndex == y.txIndex &&
+          x.address == y.address
+        ) 0 else -1
+      }
+    }
+  }
+
+  def coinbaseTx(rewardAddr: Hash, scriptPubKey: String, coinbaseScript: String, reward: Double = 50.0): Transaction = {
+    val coinbaseOutput = Output(
+      value = reward, //TODO implement dynamic mining reward
+      address = rewardAddr,
+      blockHash = emptyHash,
+      outputIndex = 0,
+      scriptPubKey = scriptPubKey,
+      coinbase = Some(Coinbase(coinbaseScript))
+    )
+
+    Transaction(
+      nTxIn = 0,
+      txIn = Vector.empty,
+      nTxOut = 1,
+      txOut = Vector(coinbaseOutput)
+    )
+  }
 
   case class Coinbase(script: String)
 

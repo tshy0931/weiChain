@@ -26,7 +26,7 @@ object CodecModule extends SprayJsonSupport with DefaultJsonProtocol {
 
   implicit val versionFormat = jsonFormat6(Version)
   implicit val coinbaseFormat = jsonFormat1(Coinbase)
-  implicit val txOutputFormat = jsonFormat7(Output)
+  implicit val txOutputFormat = jsonFormat7(Output.apply)
   implicit val txInputFormat = jsonFormat3(Input)
   implicit val transactionFormat = jsonFormat10(Transaction.apply)
   implicit val blockHeaderFormat = jsonFormat7(BlockHeader)
