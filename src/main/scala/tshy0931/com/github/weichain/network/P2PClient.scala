@@ -73,7 +73,7 @@ class P2PClient extends Actor with ActorLogging {
       log.info("start mining block after header {}", prevBlockHeader.hash)
       mine(prevBlockHeader)(rewardAddr, minerPubKeyScript, minerCoinbaseScript) flatMap { block =>
         (Database[BlockHeader].save(block.header), Database[BlockBody].save(block.body), broadcast(block)) parMapN {
-          (headerSaved, bodySaved, _) => log.info("block {} mined, saved and broadcasted", block)
+          (headerSaved, bodySaved, _) => log.info("block {} mined, saved and broadcasted", block.header.hash)
         }
       } runAsync
 

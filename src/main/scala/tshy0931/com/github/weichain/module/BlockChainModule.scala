@@ -14,6 +14,7 @@ import tshy0931.com.github.weichain.message.MerkleBlock
 import tshy0931.com.github.weichain.database.Database._
 import monix.execution.atomic._
 import tshy0931.com.github.weichain.database.Database
+import tshy0931.com.github.weichain.model.Transaction.Coinbase
 import tshy0931.com.github.weichain.module.NetworkModule.system
 
 import scala.concurrent.duration._
@@ -32,9 +33,11 @@ object BlockChainModule {
     time = genesisTime,
     height = 0
   )
+  val genesisTx: Transaction =
+    Transaction.coinbaseTx("genesis reward address", "genesis pub key script", "genesis coinbase")
 
   val genesisBlock: Block =
-    mineWithTransactions(Vector.empty, genesisBlockHeader)(rewardAddr, minerPubKeyScript, minerCoinbaseScript) runSyncUnsafe(60 seconds)
+    mineWithTransactions(Vector(genesisTx), genesisBlockHeader) runSyncUnsafe(60 seconds)
 
   def chainHeight: Task[Long] = Chain[BlockHeader].size
 

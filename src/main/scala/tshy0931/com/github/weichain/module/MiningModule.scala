@@ -27,31 +27,31 @@ object MiningModule {
            pubKeyScript: String,
            coinbaseScript: String): Task[Block] = {
     for {
-      txs   <- selectTransactions
-      block <- mineWithTransactions(txs, prevBlockHeader)(rewardAddr, pubKeyScript, coinbaseScript)
+      txs   <- selectTransactions(rewardAddr, pubKeyScript, coinbaseScript)
+      block <- mineWithTransactions(txs, prevBlockHeader)
       _     <- updateHeaderChain(block.header, prevBlockHeader)
       _     <- removeTransactionsFromMempool(block.body.transactions) //TODO: design a better approach to handle tx in mempool
     } yield block
   }
 
-  def mineWithTransactions(txs: Vector[Transaction],
-                           prevBlockHeader: BlockHeader)
-                          (rewardAddr: Hash,
-                           pubKeyScript: String,
-                           coinbaseScript: String): Task[Block] =
+  def mineWithTransactions(txs: Vector[Transaction], prevBlockHeader: BlockHeader): Task[Block] =
     for {
       pow <- proofOfWork(txs, prevBlockHeader.hash, difficulty)
       (nonce, resultHash, merkleTree) = pow
-    } yield buildBlock(prevBlockHeader, txs, merkleTree, resultHash, nonce)(rewardAddr, pubKeyScript, coinbaseScript)
+    } yield buildBlock(prevBlockHeader, txs, merkleTree, resultHash, nonce)
 
   /**
   Select a set of preferable transactions to include in the block to create. Rules are:
     1. prefer higher tx fees - TODO
     2. prefer earlier created
    */
-  private[this] def selectTransactions: Task[Vector[Transaction]] = {
+  private[this] def selectTransactions(rewardAddr: Hash,
+                                       pubKeyScript: String,
+                                       coinbaseScript: String): Task[Vector[Transaction]] = {
     // TODO prefer higher tx fees
-    MemPool[Transaction].getEarliest(2000) map { txs => filterTxWithDuplicatedTxOut(txs) toVector }
+    MemPool[Transaction].getEarliest(2000) map { txs =>
+      coinbaseTx(rewardAddr, pubKeyScript, coinbaseScript) +: filterTxWithDuplicatedTxOut(txs) toVector
+    }
   }
 
   private[this] def filterTxWithDuplicatedTxOut: Seq[Transaction] => Seq[Transaction] = input => {
@@ -86,10 +86,7 @@ object MiningModule {
                                transactions: Vector[Transaction],
                                merkleTree: MerkleTree,
                                resultHash: Hash,
-                               nonce: Int)
-                              (rewardAddr: Hash,
-                               pubKeyScript: String,
-                               coinbaseScript: String): Block = {
+                               nonce: Int): Block = {
 
     val merkleTree = MerkleTree.build(transactions)
     val blockIndex = prevBlockHeader.height+1
@@ -107,7 +104,7 @@ object MiningModule {
       headerHash = resultHash,
       merkleTree = merkleTree,
       nTx = transactions.size,
-      transactions = updateBlockDetails(transactions, header)(rewardAddr, pubKeyScript, coinbaseScript)
+      transactions = updateBlockDetails(transactions, header)
     )
 
     Block(header, body)
@@ -116,9 +113,8 @@ object MiningModule {
   private[this] def updateHeaderChain(newHeader: BlockHeader, prevHeader: BlockHeader): Task[Unit] =
     Chain[BlockHeader].append(newHeader, prevHeader)
 
-  private[this] def updateBlockDetails(txs: Vector[Transaction], header: BlockHeader)
-                                      (rewardAddr: Hash, pubKeyScript: String, coinbaseScript: String): Vector[Transaction] = {
-    (coinbaseTx(rewardAddr, pubKeyScript, coinbaseScript) +: txs).zipWithIndex map {
+  private[this] def updateBlockDetails(txs: Vector[Transaction], header: BlockHeader): Vector[Transaction] = {
+    txs.zipWithIndex map {
       case (tx, index) => (
         txBlockIndexLens.set(header.height) andThen
         txOutputBlockHashTraversal.set(header.hash) andThen
