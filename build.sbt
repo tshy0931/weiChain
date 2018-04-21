@@ -4,6 +4,14 @@ version := "0.1"
 
 scalaVersion := "2.12.5"
 
+enablePlugins(JavaAppPackaging)
+enablePlugins(DockerPlugin)
+enablePlugins(AshScriptPlugin)
+dockerBaseImage := "openjdk:8-jre-alpine"
+//dockerExposedPorts := Seq(8333)
+
+mainClass in Compile := Some("tshy0931.com.github.weichain.module.ApplicationModule")
+
 libraryDependencies += "com.chuusai" %% "shapeless" % "2.3.3"
 
 libraryDependencies += "io.monix" % "monix_2.12" % "3.0.0-RC1"
@@ -47,3 +55,4 @@ libraryDependencies += "org.mockito" % "mockito-all" % "1.9.5" % Test
 PB.targets in Compile := Seq(
   scalapb.gen() -> (sourceManaged in Compile).value
 )
+

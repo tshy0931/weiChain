@@ -1,17 +1,18 @@
 package tshy0931.com.github.weichain.module
 
+import cats.syntax.all._
 import akka.event.Logging
 import tshy0931.com.github.weichain.module.NetworkModule.system
-
-import scala.util.{Failure, Success}
+import scala.concurrent.duration._
 
 object ApplicationModule extends App {
 
   import monix.execution.Scheduler.Implicits.global
   lazy val log = Logging(system, this.getClass)
 
-  NetworkModule.start.runAsync onComplete {
-    case Success(_)   => log.info("WeiChain client successfully started.")
-    case Failure(err) => log.error("Failed to start WeiChain, error: {}", err)
-  }
+  val start = (BlockChainModule.start, NetworkModule.start) parMapN {
+    (_, _) =>
+  } onErrorHandle { err =>
+    log.error("Failed to start WeiChain, error: {}", err)
+  } runSyncUnsafe(60 seconds)
 }

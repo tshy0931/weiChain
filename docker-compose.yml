@@ -5,4 +5,10 @@ services:
     hostname: weichain-redis
     image: redis
     ports:
-      - 6379:6379
+      - "6379:6379"
+
+  weichain:
+    hostname: weichain
+    image: weichain:0.1
+    ports:
+      - "8333:8333"

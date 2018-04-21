@@ -61,6 +61,7 @@ object NetworkModule {
   var networkBinding: Http.ServerBinding = _
 
   def start: Task[Unit] = {
+    log.info("initializing network module")
     (loadSeedPeers, Task fromFuture bind(hostName, port)) parMapN {
       (_, binding) => networkBinding = binding
     } recover {
@@ -69,7 +70,10 @@ object NetworkModule {
   }
 
   private def loadSeedPeers: Task[List[Unit]] = Task.gatherUnordered {
-    seeds map { MemPool[Address].put(_, System.currentTimeMillis) }
+    seeds map { peer =>
+      log.info("adding seed peer {}:{}", peer.host, peer.port)
+      MemPool[Address].put(peer, System.currentTimeMillis)
+    }
   }
 
   private def bind(host:String, port:Int): Future[ServerBinding] = Http().bindAndHandle(routes, host, port)

@@ -18,8 +18,8 @@ object TestApplication extends App
   import monix.execution.Scheduler.Implicits.global
   lazy val log = Logging(system, this.getClass)
 
-  val start = (BlockChainModule.start, loadTestTx, loadTestBlock) parMapN {
-    (_, _, _) => NetworkModule.start.onErrorHandle { err =>
+  val start = (BlockChainModule.start, loadTestBlock) parMapN {
+    (_, _) => NetworkModule.start.onErrorHandle { err =>
       log.error("Failed to start WeiChain, error: {}", err)
     }
   } runSyncUnsafe(60 seconds)

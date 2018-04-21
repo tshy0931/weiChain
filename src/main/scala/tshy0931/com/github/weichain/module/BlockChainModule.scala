@@ -7,17 +7,20 @@ import tshy0931.com.github.weichain.model.Block.{BlockBody, BlockHeader}
 import DigestModule._
 import ConfigurationModule._
 import MiningModule._
+import akka.event.Logging
 import cats.data.OptionT
 import monix.eval.Task
 import tshy0931.com.github.weichain.message.MerkleBlock
 import tshy0931.com.github.weichain.database.Database._
 import monix.execution.atomic._
 import tshy0931.com.github.weichain.database.Database
+import tshy0931.com.github.weichain.module.NetworkModule.system
 
 import scala.concurrent.duration._
 object BlockChainModule {
 
   import monix.execution.Scheduler.Implicits.global
+  lazy val log = Logging(system, this.getClass)
 
   val genesisHash: Hash = digest("tshy0931") // 3147a5ca5ca35cbee1249030b7a5c92efd5cece51ed14ce5cd6fe41eb4021a96
   val genesisTime: Long = 1211976000000L
@@ -73,8 +76,6 @@ object BlockChainModule {
       // return count number of headers starting from genesisBlockHeader
       Chain[BlockHeader].first(count) map {(0, _)}
     } else {
-//      val peerChain: Iterator[BlockHeader] = headers.iterator
-//      val peerChainHead: BlockHeader = peerChain.next
       for {
         localSlice  <- Chain[BlockHeader].slice(headers.head.height, headers.head.height + headers.size)
         forkIndex   <- findFork(localSlice, headers)
@@ -94,7 +95,15 @@ object BlockChainModule {
   private[this] def headersAfterFork(forkIndex: Int, count: Int): Task[Seq[BlockHeader]] =
     Chain[BlockHeader].slice(forkIndex, forkIndex+count)
 
-  def start: Task[Unit] =
+  def start: Task[Unit] = {
     // store genesis block header to header chain
-    Chain[BlockHeader].update(Seq(genesisBlockHeader), genesisBlockHeader.height)
+    log.info("initializing genesis block")
+    (
+      Chain[BlockHeader].update(Seq(genesisBlock.header), genesisBlock.header.height),
+      Database[BlockHeader].save(genesisBlock.header),
+      Database[BlockBody].save(genesisBlock.body)
+    ) parMapN {
+      (_, _, _) => log.info("genesis block {} initialized", genesisBlock)
+    }
+  }
 }

@@ -1,9 +1,7 @@
 package tshy0931.com.github.weichain.module
 
-import tshy0931.com.github.weichain._
-import org.scalatest.{FlatSpec, GivenWhenThen, Inside, Matchers}
+import org.scalatest.{FlatSpec, Inside, Matchers}
 import MiningModule._
-import DigestModule._
 import BlockChainModule._
 import tshy0931.com.github.weichain.model.Block._
 import monix.execution.Scheduler.Implicits.global
